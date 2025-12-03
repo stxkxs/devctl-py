@@ -55,9 +55,9 @@ dev = [
 devctl = "devctl.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/your-org/devctl"
-Documentation = "https://github.com/your-org/devctl#readme"
-Repository = "https://github.com/your-org/devctl"
+Homepage = "https://github.com/stxkxs/devctl"
+Documentation = "https://github.com/stxkxs/devctl#readme"
+Repository = "https://github.com/stxkxs/devctl"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/devctl"]

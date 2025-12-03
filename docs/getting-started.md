@@ -14,7 +14,7 @@ This guide walks through installing devctl, configuring credentials, and running
 ### From source
 
 ```bash
-git clone https://github.com/your-org/devctl.git
+git clone https://github.com/stxkxs/devctl.git
 cd devctl
 
 # Using pip

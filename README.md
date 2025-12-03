@@ -11,6 +11,10 @@ pip install -e .
 # Using uv
 uv pip install -e .
 
+# Using Docker
+docker build -t devctl .
+docker run --rm -v ~/.aws:/home/devctl/.aws:ro devctl aws iam whoami
+
 # Development
 pip install -e ".[dev]"
 ```
@@ -42,6 +46,7 @@ devctl github repos list
 | [Predictive Scaling](docs/predictive-scaling.md) | ML-powered auto-scaling with AWS Forecast + Karpenter |
 | [Bedrock AI](docs/bedrock-ai.md) | Agents, batch inference, model comparison |
 | [Workflows](docs/workflows.md) | YAML workflow engine with Jinja2 templating |
+| [Docker](docs/docker.md) | Container usage, CI/CD integration |
 
 ## Command Overview
 

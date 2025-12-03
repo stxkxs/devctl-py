@@ -1,0 +1,109 @@
+# Docker Compose for DevCtl
+#
+# Usage:
+#   docker compose run --rm devctl aws iam whoami
+#   docker compose run --rm devctl --shell
+#
+# With specific profile:
+#   AWS_PROFILE=production docker compose run --rm devctl aws s3 ls
+#
+
+services:
+  devctl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: devctl:latest
+    container_name: devctl
+    stdin_open: true
+    tty: true
+
+    # Mount credentials (read-only for security)
+    volumes:
+      - ~/.aws:/home/devctl/.aws:ro
+      - ~/.kube:/home/devctl/.kube:ro
+      - ~/.devctl:/home/devctl/.devctl:ro
+      # Mount current directory for workflows and local files
+      - .:/workspace:ro
+
+    # Environment variables (passed through from host)
+    environment:
+      # AWS
+      - AWS_PROFILE
+      - AWS_REGION
+      - AWS_DEFAULT_REGION
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_ROLE_ARN
+      - AWS_WEB_IDENTITY_TOKEN_FILE
+      # Grafana
+      - GRAFANA_API_KEY
+      - DEVCTL_GRAFANA_API_KEY
+      - DEVCTL_GRAFANA_URL
+      # GitHub
+      - GITHUB_TOKEN
+      - DEVCTL_GITHUB_TOKEN
+      - GH_TOKEN
+      - DEVCTL_GITHUB_ORG
+      # DevCtl settings
+      - DEVCTL_PROFILE
+      - DEVCTL_OUTPUT_FORMAT
+      - DEVCTL_NO_COLOR
+      - DEVCTL_DEBUG
+      # Kubernetes
+      - KUBECONFIG
+
+    # Network mode for accessing local services if needed
+    # network_mode: host  # Uncomment if you need to access localhost services
+
+    # Security: drop all capabilities, run read-only
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=100M
+
+  # Development container with all dev tools
+  devctl-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    image: devctl:dev
+    container_name: devctl-dev
+    stdin_open: true
+    tty: true
+    volumes:
+      - ~/.aws:/home/devctl/.aws:ro
+      - ~/.kube:/home/devctl/.kube:ro
+      # Mount source for development (read-write)
+      - .:/workspace
+    environment:
+      - AWS_PROFILE
+      - AWS_REGION
+      - GRAFANA_API_KEY
+      - GITHUB_TOKEN
+    working_dir: /workspace
+    command: /bin/bash
+
+  # CI/CD runner - for automated pipelines
+  devctl-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: devctl:ci
+    volumes:
+      - .:/workspace:ro
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION
+      - GRAFANA_API_KEY
+      - GITHUB_TOKEN
+      - CI=true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true

@@ -12,7 +12,7 @@ from devctl.config import WorkflowConfig, WorkflowStep
 from devctl.core.context import DevCtlContext
 from devctl.core.exceptions import WorkflowError
 from devctl.core.logging import get_logger
-from devctl.workflows.schema import validate_workflow, WorkflowSchema
+from devctl.workflows.schema import validate_workflow, WorkflowSchema, WorkflowStepSchema
 
 logger = get_logger(__name__)
 
@@ -115,8 +115,6 @@ class WorkflowEngine:
         Returns:
             Step execution result
         """
-        from devctl.workflows.schema import WorkflowStepSchema
-
         self.ctx.output.print(f"\n[bold]Step {step_num}/{total_steps}: {step.name}[/bold]")
 
         # Check condition

@@ -305,6 +305,29 @@ Custom exceptions in `src/devctl/core/exceptions.py`:
 
 6. **Shell Completion**: Add bash/zsh completion scripts
 
+## Docker
+
+The CLI can run in a container with all dependencies (AWS CLI v2, kubectl, helm).
+
+### Build and Run
+```bash
+docker build -t devctl .
+docker run --rm -v ~/.aws:/home/devctl/.aws:ro devctl aws iam whoami
+```
+
+### Container Features
+- Multi-stage build (builder → runtime → development)
+- Non-root user (devctl, UID 1000)
+- Includes: AWS CLI v2, kubectl, helm, git, jq
+- Entrypoint handles credential validation
+- Read-only filesystem with tmpfs for /tmp
+
+### Key Files
+- `Dockerfile` - Multi-stage build with runtime and dev targets
+- `docker/entrypoint.sh` - Credential validation, shell mode
+- `docker-compose.yml` - Easy local usage
+- `.dockerignore` - Build context optimization
+
 ## File Structure Summary
 
 ```
@@ -312,6 +335,10 @@ devctl-py/
 ├── pyproject.toml          # Package config
 ├── README.md               # User docs
 ├── AI_CONTEXT.md           # This file
+├── Dockerfile              # Container build
+├── docker-compose.yml      # Compose config
+├── docker/
+│   └── entrypoint.sh       # Container entrypoint
 ├── config.example.yaml     # Config template
 ├── .env.example            # Env var template
 ├── docs/                   # Documentation
@@ -320,7 +347,8 @@ devctl-py/
 │   ├── aws-commands.md
 │   ├── predictive-scaling.md
 │   ├── workflows.md
-│   └── bedrock-ai.md
+│   ├── bedrock-ai.md
+│   └── docker.md
 ├── src/devctl/
 │   ├── __init__.py         # Version
 │   ├── __main__.py         # Module entry
