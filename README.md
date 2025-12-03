@@ -1,15 +1,6 @@
-# DevCtl
+# devctl
 
-A Python CLI for unified DevOps operations across AWS, Grafana Cloud, and GitHub.
-
-## Features
-
-- **Unified Operations**: Single interface for AWS, Grafana, and GitHub
-- **Profile Management**: Easy switching between environments (dev, staging, production)
-- **Workflow Automation**: YAML-defined workflows with Jinja2 templating
-- **Cost Analysis**: Cross-service cost reporting and optimization recommendations
-- **Health Checks**: Comprehensive health monitoring for HTTP, TCP, ECS, and EKS
-- **Rich Output**: Beautiful terminal output with tables, colors, and progress bars
+A unified CLI for AWS, Grafana, and GitHub operations. Built for DevOps engineers who work across these platforms daily.
 
 ## Installation
 
@@ -17,52 +8,168 @@ A Python CLI for unified DevOps operations across AWS, Grafana Cloud, and GitHub
 # Using pip
 pip install -e .
 
-# Using uv (recommended)
+# Using uv
 uv pip install -e .
 
-# Development installation
+# Development
 pip install -e ".[dev]"
 ```
 
 ## Quick Start
 
 ```bash
-# Configure credentials (copy and edit)
+# Set up configuration
 cp config.example.yaml ~/.devctl/config.yaml
 cp .env.example .env
 
-# Test AWS connectivity
+# Verify AWS access
 devctl aws iam whoami
 
-# List S3 buckets
+# List resources
 devctl aws s3 ls
-
-# Check Grafana health
-devctl grafana datasources health
-
-# List GitHub repos
+devctl aws eks list-clusters
+devctl grafana dashboards list
 devctl github repos list
+```
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Getting Started](docs/getting-started.md) | Installation, configuration, first commands |
+| [Configuration](docs/configuration.md) | Profiles, credentials, environment variables |
+| [AWS Commands](docs/aws-commands.md) | IAM, S3, ECR, EKS, Cost Explorer, CloudWatch |
+| [Predictive Scaling](docs/predictive-scaling.md) | ML-powered auto-scaling with AWS Forecast + Karpenter |
+| [Bedrock AI](docs/bedrock-ai.md) | Agents, batch inference, model comparison |
+| [Workflows](docs/workflows.md) | YAML workflow engine with Jinja2 templating |
+
+## Command Overview
+
+```
+devctl
+├── aws
+│   ├── iam          # Identity and access management
+│   ├── s3           # Object storage operations
+│   ├── ecr          # Container registry
+│   ├── eks          # Kubernetes clusters
+│   ├── cost         # Cost analysis and optimization
+│   ├── bedrock      # AI/ML with Bedrock
+│   ├── forecast     # Predictive scaling with Forecast
+│   └── cloudwatch   # Logs and metrics
+├── grafana
+│   ├── dashboards   # Dashboard management
+│   ├── alerts       # Alert rules and silences
+│   ├── datasources  # Data source configuration
+│   ├── folders      # Folder organization
+│   └── annotations  # Event annotations
+├── github
+│   ├── repos        # Repository operations
+│   ├── actions      # Workflow runs
+│   ├── prs          # Pull requests
+│   ├── issues       # Issue tracking
+│   └── releases     # Release management
+├── ops
+│   ├── health       # Health checks
+│   └── cost-report  # Cross-service cost analysis
+└── workflow
+    ├── run          # Execute workflows
+    ├── list         # List workflows/templates
+    ├── validate     # Validate YAML
+    └── template     # View built-in templates
+```
+
+## Global Options
+
+```bash
+devctl [OPTIONS] COMMAND
+
+  -p, --profile NAME    Configuration profile (default, production, etc.)
+  -o, --output FORMAT   Output format: table, json, yaml, raw
+  -v, --verbose         Increase verbosity (-v, -vv, -vvv)
+  -q, --quiet           Suppress non-essential output
+  --dry-run             Show what would happen without executing
+  --no-color            Disable colored output
+  -c, --config FILE     Custom config file path
+  --version             Show version
+  -h, --help            Show help
+```
+
+## Common Workflows
+
+### Deploy with health check and annotation
+
+```bash
+# Build and push container
+devctl aws ecr build my-app --tag v1.2.3 --push
+
+# Update EKS deployment
+kubectl set image deployment/my-app app=123456789.dkr.ecr.us-east-1.amazonaws.com/my-app:v1.2.3
+
+# Wait for rollout
+kubectl rollout status deployment/my-app
+
+# Create Grafana annotation
+devctl grafana annotations create "Deployed my-app v1.2.3" --tags deployment,my-app
+```
+
+### Cost investigation
+
+```bash
+# Get cost summary
+devctl aws cost summary --days 30
+
+# Find top spending services
+devctl aws cost by-service --top 10
+
+# Check for unused resources
+devctl aws cost unused-resources
+
+# Get rightsizing recommendations
+devctl aws cost rightsizing
+```
+
+### Predictive scaling setup
+
+```bash
+# Export historical metrics
+devctl aws forecast export-metrics \
+  --namespace AWS/ApplicationELB \
+  --metric RequestCount \
+  --days 90 \
+  --output s3://my-bucket/forecast/metrics.csv
+
+# Create and train predictor
+devctl aws forecast datasets create --name api-traffic
+devctl aws forecast predictors create --name api-predictor --dataset-group-arn ARN
+
+# Generate scaling schedule
+devctl aws forecast scaling recommend FORECAST_ARN \
+  --item-id api-service \
+  --min-nodes 2 \
+  --requests-per-node 1000
+
+# Apply to EKS with Karpenter
+devctl aws forecast scaling apply \
+  --cluster my-eks \
+  --schedule /tmp/schedule.json
 ```
 
 ## Configuration
 
-DevCtl uses a layered configuration system:
+DevCtl uses layered configuration (lowest to highest priority):
 
-1. **Default values** in code
-2. **User config** at `~/.devctl/config.yaml`
-3. **Project config** at `./devctl.yaml`
-4. **Environment variables** (`DEVCTL_*`)
-5. **CLI flags** (highest priority)
+1. Default values
+2. `~/.devctl/config.yaml` (user defaults)
+3. `./devctl.yaml` (project config)
+4. Environment variables (`DEVCTL_*`)
+5. CLI flags
 
-### Example Configuration
+See [Configuration Guide](docs/configuration.md) for details.
+
+### Minimal config.yaml
 
 ```yaml
 version: "1"
-
-global:
-  output_format: table
-  color: auto
-  confirm_destructive: true
 
 profiles:
   default:
@@ -71,218 +178,36 @@ profiles:
       region: us-east-1
     grafana:
       url: https://your-stack.grafana.net
-      api_key: from_env
     github:
-      token: from_env
       org: your-org
-
-  production:
-    aws:
-      profile: prod
-      region: us-west-2
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
-# AWS
 export DEVCTL_AWS_PROFILE=default
 export DEVCTL_AWS_REGION=us-east-1
-
-# Grafana
-export DEVCTL_GRAFANA_URL=https://your-stack.grafana.net
-export DEVCTL_GRAFANA_API_KEY=your-api-key
-
-# GitHub
-export DEVCTL_GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-export DEVCTL_GITHUB_ORG=your-org
+export DEVCTL_GRAFANA_API_KEY=glsa_xxxx
+export DEVCTL_GITHUB_TOKEN=ghp_xxxx
 ```
 
-## Command Reference
-
-### Global Options
-
-```
-devctl [OPTIONS] COMMAND
-
-Options:
-  -p, --profile NAME    Configuration profile
-  -o, --output FORMAT   Output format (table/json/yaml/raw)
-  -v, --verbose         Increase verbosity (-v, -vv, -vvv)
-  -q, --quiet           Suppress non-essential output
-  --dry-run             Show what would happen
-  --no-color            Disable colored output
-  -c, --config FILE     Config file path
-  --version             Show version
-  -h, --help            Show help
-```
-
-### AWS Commands
+## Built-in Workflow Templates
 
 ```bash
-# IAM
-devctl aws iam whoami
-devctl aws iam list-users
-devctl aws iam list-roles --prefix AWSServiceRole
-devctl aws iam assume arn:aws:iam::123456789012:role/MyRole
-devctl aws iam unused-roles --days 90
+# List available templates
+devctl workflow list --templates
 
-# S3
-devctl aws s3 ls
-devctl aws s3 ls my-bucket --prefix logs/
-devctl aws s3 size my-bucket --human
-devctl aws s3 sync ./local s3://bucket/prefix
-devctl aws s3 cost-analysis --days 30
+# View a template
+devctl workflow template predictive-scaling
 
-# ECR
-devctl aws ecr list-repos
-devctl aws ecr list-images my-repo
-devctl aws ecr login
-devctl aws ecr cleanup my-repo --keep 10
-devctl aws ecr scan my-repo:latest --wait
-
-# EKS
-devctl aws eks list-clusters
-devctl aws eks describe my-cluster
-devctl aws eks kubeconfig my-cluster
-devctl aws eks nodegroups my-cluster --scale my-ng --count 3
-
-# Cost Explorer
-devctl aws cost summary --days 30
-devctl aws cost by-service --top 10
-devctl aws cost forecast
-devctl aws cost rightsizing
-devctl aws cost unused-resources
-
-# Bedrock
-devctl aws bedrock list-models
-devctl aws bedrock invoke anthropic.claude-v2 --prompt "Hello"
-devctl aws bedrock usage --days 7
-
-# CloudWatch
-devctl aws cloudwatch metrics AWS/EC2 --metric CPUUtilization
-devctl aws cloudwatch logs /aws/lambda/my-function --tail
-devctl aws cloudwatch alarms --state alarm
+# Copy and customize
+devctl workflow template predictive-scaling -o ./my-scaling.yaml
 ```
 
-### Grafana Commands
-
-```bash
-# Dashboards
-devctl grafana dashboards list
-devctl grafana dashboards get abc123
-devctl grafana dashboards export abc123 --output dashboard.json
-devctl grafana dashboards import dashboard.json --folder MyFolder
-devctl grafana dashboards backup --output ./backups
-
-# Alerts
-devctl grafana alerts list --state firing
-devctl grafana alerts silence rule-uid --duration 1h
-devctl grafana alerts rules list
-
-# Datasources
-devctl grafana datasources list
-devctl grafana datasources test prometheus
-devctl grafana datasources health
-
-# Annotations
-devctl grafana annotations create "Deployment v1.2.3" --tags deployment
-devctl grafana annotations list --from -24h
-```
-
-### GitHub Commands
-
-```bash
-# Repositories
-devctl github repos list
-devctl github repos clone owner/repo
-devctl github repos create new-repo --private
-
-# Actions
-devctl github actions list owner/repo
-devctl github actions runs owner/repo --status completed
-devctl github actions run owner/repo deploy.yml --ref main
-devctl github actions logs owner/repo 12345
-
-# Pull Requests
-devctl github prs list owner/repo
-devctl github prs create owner/repo "My PR" --head feature --base main
-devctl github prs merge owner/repo 123 --method squash
-
-# Releases
-devctl github releases list owner/repo
-devctl github releases create owner/repo v1.0.0 --notes "Initial release"
-devctl github releases download owner/repo v1.0.0
-```
-
-### Ops Commands
-
-```bash
-# Health Checks
-devctl ops health check my-service --type http
-devctl ops health wait my-service --timeout 300
-devctl ops health url https://api.example.com/health
-
-# Cost Reports
-devctl ops cost-report --days 30
-devctl ops cost-report --format detailed
-```
-
-### Workflows
-
-```bash
-# Run a workflow
-devctl workflow run deploy-service --var service_name=api --var env=prod
-
-# Dry-run a workflow
-devctl workflow dry-run deploy-service --var service_name=api
-
-# List configured workflows
-devctl workflow list
-
-# Validate a workflow file
-devctl workflow validate ./my-workflow.yaml
-```
-
-## Workflow Definition
-
-Workflows are defined in YAML with Jinja2 templating:
-
-```yaml
-name: deploy-service
-description: Deploy a service with health checks
-
-vars:
-  cluster: default-cluster
-  timeout: 300
-
-steps:
-  - name: Build container
-    command: aws ecr build
-    params:
-      repository: "{{ service_name }}"
-      push: true
-
-  - name: Deploy to ECS
-    command: aws ecs deploy
-    params:
-      cluster: "{{ cluster }}"
-      service: "{{ service_name }}"
-
-  - name: Wait for healthy
-    command: ops health wait
-    params:
-      target: "{{ service_name }}"
-      type: ecs
-    on_failure: continue
-
-  - name: Create annotation
-    command: grafana annotations create
-    params:
-      text: "Deployed {{ service_name }}"
-      tags:
-        - deployment
-```
+Available templates:
+- `predictive-scaling` - Full ML pipeline setup for predictive auto-scaling
+- `update-predictive-scaling` - Refresh scaling schedule from existing model
+- `predictive-scaling-pipeline` - Continuous daily pipeline for metrics/predictions
 
 ## Development
 
@@ -293,41 +218,28 @@ pip install -e ".[dev]"
 # Run tests
 pytest
 
-# Run linter
+# Lint
 ruff check src/
 
-# Run type checker
+# Type check
 mypy src/
 
-# Format code
+# Format
 ruff format src/
 ```
 
-## Architecture
+## Dependencies
 
-```
-src/devctl/
-├── cli.py              # Main CLI entry point
-├── config.py           # Configuration management
-├── core/
-│   ├── context.py      # Shared context object
-│   ├── output.py       # Output formatting
-│   ├── exceptions.py   # Exception hierarchy
-│   └── async_utils.py  # Async helpers
-├── clients/
-│   ├── aws.py          # AWS client factory
-│   ├── grafana.py      # Grafana API client
-│   └── github.py       # GitHub API client
-├── commands/
-│   ├── aws/            # AWS command groups
-│   ├── grafana/        # Grafana commands
-│   ├── github/         # GitHub commands
-│   └── ops/            # DevOps commands
-└── workflows/
-    ├── engine.py       # Workflow executor
-    └── schema.py       # Workflow validation
-```
+| Package | Purpose |
+|---------|---------|
+| [click](https://click.palletsprojects.com/) | CLI framework |
+| [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) | AWS SDK |
+| [httpx](https://www.python-httpx.org/) | HTTP client for Grafana/GitHub APIs |
+| [rich](https://rich.readthedocs.io/) | Terminal formatting |
+| [pydantic](https://docs.pydantic.dev/) | Configuration validation |
+| [jinja2](https://jinja.palletsprojects.com/) | Workflow templating |
+| [pyyaml](https://pyyaml.org/) | YAML parsing |
 
 ## License
 
-MIT License
+MIT

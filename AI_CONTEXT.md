@@ -63,6 +63,13 @@ DevCtl is a Python CLI tool for unified DevOps operations across AWS, Grafana Cl
 - Steps can be devctl commands or shell commands (prefixed with `!`)
 - Variables passed via CLI or defined in workflow
 - Conditional execution and failure handling
+- Built-in templates for predictive scaling pipelines
+
+### Predictive Scaling (`src/devctl/commands/aws/forecast.py`)
+- ML-powered auto-scaling using AWS Forecast
+- Integration with EKS/Karpenter for node scaling
+- Commands: export-metrics, datasets, predictors, scaling
+- Generates Karpenter NodePool manifests
 
 ## Code Patterns
 
@@ -118,12 +125,98 @@ class NewClient:
         return self.client.get("/api/items").json()
 ```
 
-## Testing Approach
+## Testing Strategy
 
-- Unit tests with pytest
-- AWS mocking with moto
-- HTTP mocking with respx or pytest-httpx
-- Fixtures in conftest.py for common setup
+We follow the **Testing Trophy** approach (Kent C. Dodds), prioritizing integration tests as the sweet spot for confidence vs. cost.
+
+### Test Distribution
+
+| Level | Files | Count | Purpose |
+|-------|-------|-------|---------|
+| Static | pyproject.toml | - | ruff (linting), mypy (type checking) |
+| Unit | test_output.py | ~19 | Pure functions: formatters, validators |
+| **Integration** | test_workflows.py, test_aws_integration.py | ~59 | Workflow engine, AWS commands with moto |
+| E2E | test_cli.py | ~11 | CLI wiring verification |
+
+### Key Testing Principles
+
+1. **Integration tests are the priority** - They test how units work together and give the most confidence
+2. **Use moto for AWS** - Mock AWS services without hitting real APIs
+3. **Test behavior, not implementation** - Focus on what commands do, not how they do it
+4. **Keep tests fast** - All 122 tests run in ~1.5 seconds
+
+### Test Files
+
+```
+tests/
+├── conftest.py              # Shared fixtures
+├── test_cli.py              # CLI wiring tests (E2E)
+├── test_config.py           # Configuration tests
+├── test_output.py           # Output formatting (Unit)
+├── test_workflows.py        # Workflow engine (Integration)
+└── test_aws_integration.py  # AWS commands with moto (Integration)
+```
+
+### Writing Tests
+
+**Unit tests** for pure functions:
+```python
+def test_format_bytes():
+    assert format_bytes(1024) == "1.0 KB"
+```
+
+**Integration tests** with moto for AWS:
+```python
+@mock_aws
+def test_s3_ls_with_buckets(self, cli_runner):
+    import boto3
+    s3 = boto3.client("s3", region_name="us-east-1")
+    s3.create_bucket(Bucket="test-bucket")
+
+    result = cli_runner.invoke(cli, ["aws", "s3", "ls"])
+    assert result.exit_code == 0
+    assert "test-bucket" in result.output
+```
+
+**Workflow engine tests**:
+```python
+def test_dry_run_does_not_execute(self, workflow_engine):
+    workflow = WorkflowSchema(
+        name="test",
+        steps=[WorkflowStepSchema(name="dangerous", command="!rm -rf /")],
+    )
+    result = workflow_engine.run(workflow, dry_run=True)
+    assert result["success"] is True
+    assert result["steps"][0]["dry_run"] is True
+```
+
+### Running Tests
+
+```bash
+# All tests
+pytest
+
+# With coverage
+pytest --cov=src/devctl
+
+# Specific file
+pytest tests/test_workflows.py
+
+# Verbose output
+pytest -v
+```
+
+## Documentation
+
+```
+docs/
+├── getting-started.md       # Installation, first commands
+├── configuration.md         # Profiles, credentials, env vars
+├── aws-commands.md          # Full AWS command reference
+├── predictive-scaling.md    # Forecast + Karpenter guide
+├── workflows.md             # Workflow engine docs
+└── bedrock-ai.md            # Bedrock agents, batch, compare
+```
 
 ## Common Tasks for Future Development
 
@@ -132,6 +225,7 @@ class NewClient:
 2. Add command group with `@click.group()`
 3. Register in `src/devctl/commands/aws/__init__.py`
 4. Use `ctx.aws.client("servicename")` for boto3 client
+5. Add integration tests with moto in `tests/test_aws_integration.py`
 
 ### Adding a New Grafana Endpoint
 1. Add method to `GrafanaClient` class
@@ -142,6 +236,12 @@ class NewClient:
 1. Modify `_execute_command` in workflow engine
 2. Add new execution method
 3. Update workflow schema if needed
+4. Add tests in `test_workflows.py`
+
+### Adding a New Workflow Template
+1. Create YAML file in `src/devctl/workflows/templates/`
+2. Include name, description, vars, steps
+3. Add validation test in `TestBuiltinWorkflowTemplates`
 
 ## Configuration Reference
 
@@ -169,9 +269,10 @@ Core:
 
 Dev:
 - pytest>=8.0.0 - Testing
+- pytest-cov>=4.0.0 - Coverage
 - ruff>=0.3.0 - Linting/formatting
 - mypy>=1.8.0 - Type checking
-- moto>=5.0.0 - AWS mocking
+- moto[all]>=5.0.0 - AWS mocking
 
 ## Error Handling
 
@@ -185,29 +286,24 @@ Custom exceptions in `src/devctl/core/exceptions.py`:
 
 ## Next Steps / TODO
 
-1. **Tests**: Add comprehensive test coverage
-   - Unit tests for each command
-   - Integration tests with mocked services
-   - Workflow engine tests
-
-2. **EC2 Commands**: Add EC2 instance management
+1. **EC2 Commands**: Add EC2 instance management
    - list, start, stop, terminate
    - SSH tunneling
 
-3. **SSM Commands**: Parameter Store operations
+2. **SSM Commands**: Parameter Store operations
    - get, set, list, delete
 
-4. **Lambda Commands**: Function management
+3. **Lambda Commands**: Function management
    - invoke, logs, deploy
 
-5. **More Workflow Features**:
+4. **More Workflow Features**:
    - Parallel step execution
    - Step dependencies
    - Output capture between steps
 
-6. **Plugin System**: Allow custom commands via plugins
+5. **Plugin System**: Allow custom commands via plugins
 
-7. **Shell Completion**: Add bash/zsh completion scripts
+6. **Shell Completion**: Add bash/zsh completion scripts
 
 ## File Structure Summary
 
@@ -218,6 +314,13 @@ devctl-py/
 ├── AI_CONTEXT.md           # This file
 ├── config.example.yaml     # Config template
 ├── .env.example            # Env var template
+├── docs/                   # Documentation
+│   ├── getting-started.md
+│   ├── configuration.md
+│   ├── aws-commands.md
+│   ├── predictive-scaling.md
+│   ├── workflows.md
+│   └── bedrock-ai.md
 ├── src/devctl/
 │   ├── __init__.py         # Version
 │   ├── __main__.py         # Module entry
@@ -227,10 +330,22 @@ devctl-py/
 │   ├── clients/            # API clients
 │   ├── commands/           # CLI commands
 │   │   ├── aws/            # AWS commands
+│   │   │   ├── forecast.py # Predictive scaling
+│   │   │   ├── bedrock.py  # AI/ML operations
+│   │   │   └── ...
 │   │   ├── grafana/        # Grafana commands
 │   │   ├── github/         # GitHub commands
 │   │   ├── ops/            # DevOps commands
 │   │   └── workflow.py     # Workflow commands
 │   └── workflows/          # Workflow engine
+│       ├── engine.py       # Execution engine
+│       ├── schema.py       # Validation
+│       └── templates/      # Built-in templates
 └── tests/                  # Test files
+    ├── conftest.py
+    ├── test_cli.py
+    ├── test_config.py
+    ├── test_output.py
+    ├── test_workflows.py
+    └── test_aws_integration.py
 ```

@@ -1,0 +1,98 @@
+# Continuous Predictive Scaling Pipeline
+#
+# This workflow maintains a continuous ML pipeline for predictive scaling:
+# 1. Exports latest CloudWatch metrics to S3 (incremental)
+# 2. Refreshes the Forecast dataset with new data
+# 3. Retrains the predictor if needed (weekly)
+# 4. Updates scaling recommendations
+#
+# Run this daily via cron/EventBridge:
+#   0 2 * * * devctl workflow run predictive-scaling-pipeline.yaml --var ...
+#
+# Or deploy as an EventBridge scheduled rule + Lambda/ECS task
+
+name: predictive-scaling-pipeline
+description: Continuous pipeline to keep predictive scaling up-to-date
+
+vars:
+  # Required
+  cluster: ""
+  service_name: ""
+  s3_bucket: ""
+  forecast_role: ""
+  dataset_arn: ""       # From initial setup
+  dataset_group_arn: "" # From initial setup
+
+  # Optional
+  cloudwatch_namespace: "AWS/ApplicationELB"
+  cloudwatch_metric: "RequestCount"
+  cloudwatch_dimensions: ""
+  export_days: 7        # Only export last 7 days (incremental)
+  retrain_predictor: false  # Set to true weekly
+  min_nodes: 2
+  requests_per_node: 1000
+  instance_type: "m5.large"
+  nodepool_name: "predictive"
+
+steps:
+  - name: Export recent metrics
+    command: aws forecast export-metrics
+    params:
+      namespace: "{{ cloudwatch_namespace }}"
+      metric: "{{ cloudwatch_metric }}"
+      dimensions: "{{ cloudwatch_dimensions }}"
+      item-id: "{{ service_name }}"
+      days: "{{ export_days }}"
+      output: "s3://{{ s3_bucket }}/forecast/{{ service_name }}/incremental/metrics-{{ '%Y%m%d' | strftime }}.csv"
+    on_failure: fail
+
+  - name: Import new data to dataset
+    command: aws forecast datasets import
+    params:
+      dataset_arn: "{{ dataset_arn }}"
+      name: "{{ service_name }}-incremental-{{ '%Y%m%d' | strftime }}"
+      s3-uri: "s3://{{ s3_bucket }}/forecast/{{ service_name }}/incremental/metrics-{{ '%Y%m%d' | strftime }}.csv"
+      role: "{{ forecast_role }}"
+    on_failure: fail
+    timeout: 600
+
+  - name: Retrain predictor (if enabled)
+    condition: "{{ retrain_predictor }}"
+    command: aws forecast predictors create
+    params:
+      name: "{{ service_name }}-predictor-{{ '%Y%m%d' | strftime }}"
+      dataset-group: "{{ dataset_group_arn }}"
+      horizon: 24
+      auto-ml: true
+    on_failure: continue
+    timeout: 3600
+
+  - name: Generate new forecast
+    command: aws forecast create
+    params:
+      name: "{{ service_name }}-forecast-{{ '%Y%m%d' | strftime }}"
+    on_failure: fail
+    timeout: 1800
+
+  - name: Update scaling schedule
+    command: aws forecast scaling recommend
+    params:
+      item-id: "{{ service_name }}"
+      min-nodes: "{{ min_nodes }}"
+      requests-per-node: "{{ requests_per_node }}"
+      instance-type: "{{ instance_type }}"
+    on_failure: fail
+
+  - name: Apply to cluster
+    command: aws forecast scaling apply
+    params:
+      cluster: "{{ cluster }}"
+      nodepool-name: "{{ nodepool_name }}"
+    on_failure: fail
+
+  - name: Log update
+    command: grafana annotations create
+    params:
+      text: "Predictive scaling updated for {{ service_name }}"
+      tags: "predictive-scaling,pipeline,{{ cluster }}"
+    on_failure: continue

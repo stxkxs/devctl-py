@@ -173,6 +173,31 @@ class AWSClientFactory:
         """Get SageMaker client."""
         return self.client("sagemaker")
 
+    @property
+    def bedrock_agent(self) -> Any:
+        """Get Bedrock Agent client."""
+        return self.client("bedrock-agent")
+
+    @property
+    def bedrock_agent_runtime(self) -> Any:
+        """Get Bedrock Agent Runtime client."""
+        return self.client("bedrock-agent-runtime")
+
+    @property
+    def forecast(self) -> Any:
+        """Get AWS Forecast client."""
+        return self.client("forecast")
+
+    @property
+    def forecastquery(self) -> Any:
+        """Get AWS Forecast Query client."""
+        return self.client("forecastquery")
+
+    @property
+    def autoscaling(self) -> Any:
+        """Get Auto Scaling client."""
+        return self.client("autoscaling")
+
 
 def handle_aws_error(func: Any) -> Any:
     """Decorator to handle AWS errors consistently."""

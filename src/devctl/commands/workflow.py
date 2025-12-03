@@ -125,21 +125,64 @@ def dry_run(ctx: DevCtlContext, name_or_file: str, var: tuple[str, ...]) -> None
 
 
 @workflow.command("list")
+@click.option("--templates", "-t", is_flag=True, help="List built-in workflow templates")
 @pass_context
-def list_workflows(ctx: DevCtlContext) -> None:
-    """List configured workflows."""
+def list_workflows(ctx: DevCtlContext, templates: bool) -> None:
+    """List configured workflows or built-in templates."""
+    if templates:
+        # List built-in templates
+        import importlib.resources
+        try:
+            # Python 3.9+
+            templates_path = Path(__file__).parent.parent / "workflows" / "templates"
+            template_files = list(templates_path.glob("*.yaml"))
+        except Exception:
+            template_files = []
+
+        if not template_files:
+            ctx.output.print_info("No built-in templates found")
+            return
+
+        data = []
+        for tf in template_files:
+            try:
+                with open(tf) as f:
+                    content = yaml.safe_load(f)
+                data.append({
+                    "Template": tf.stem,
+                    "Description": (content.get("description", "-") or "-")[:50],
+                    "Steps": len(content.get("steps", [])),
+                })
+            except Exception:
+                data.append({
+                    "Template": tf.stem,
+                    "Description": "(error loading)",
+                    "Steps": "-",
+                })
+
+        ctx.output.print_data(
+            data,
+            headers=["Template", "Description", "Steps"],
+            title=f"Built-in Workflow Templates ({len(data)} found)",
+        )
+
+        ctx.output.print_info("\nTo use a template:")
+        ctx.output.print(f"  devctl workflow run {templates_path}/<template>.yaml --var key=value")
+        return
+
+    # List configured workflows
     workflows = ctx.config.workflows
 
     if not workflows:
-        ctx.output.print_info("No workflows configured")
-        ctx.output.print_info("Add workflows to your devctl.yaml config file")
+        ctx.output.print_info("No workflows configured in your config file")
+        ctx.output.print_info("\nTo see built-in templates: devctl workflow list --templates")
         return
 
     data = []
     for name, wf in workflows.items():
         data.append({
             "Name": name,
-            "Description": wf.description[:40] or "-",
+            "Description": (wf.description[:40] if wf.description else "-"),
             "Steps": len(wf.steps),
             "Vars": len(wf.vars),
         })
@@ -222,3 +265,38 @@ def show(ctx: DevCtlContext, name: str) -> None:
             if step.condition:
                 ctx.output.print(f"     Condition: {step.condition}")
             ctx.output.print(f"     On Failure: {step.on_failure}")
+
+
+@workflow.command("template")
+@click.argument("name")
+@click.option("--output", "-o", type=click.Path(), help="Copy template to file")
+@pass_context
+def show_template(ctx: DevCtlContext, name: str, output: str | None) -> None:
+    """Show or copy a built-in workflow template.
+
+    \b
+    Examples:
+        devctl workflow template predictive-scaling
+        devctl workflow template predictive-scaling -o ./my-workflow.yaml
+    """
+    templates_path = Path(__file__).parent.parent / "workflows" / "templates"
+    template_file = templates_path / f"{name}.yaml"
+
+    if not template_file.exists():
+        # Try without .yaml extension
+        available = [f.stem for f in templates_path.glob("*.yaml")]
+        ctx.output.print_error(f"Template not found: {name}")
+        if available:
+            ctx.output.print_info(f"Available templates: {', '.join(available)}")
+        raise SystemExit(1)
+
+    content = template_file.read_text()
+
+    if output:
+        Path(output).write_text(content)
+        ctx.output.print_success(f"Template copied to: {output}")
+        ctx.output.print_info("\nEdit the file and run with:")
+        ctx.output.print(f"  devctl workflow run {output} --var cluster=my-cluster --var ...")
+    else:
+        # Show the template content
+        ctx.output.print(content)

@@ -1,0 +1,64 @@
+# Update Predictive Scaling Workflow
+#
+# Use this workflow when you already have a trained AWS Forecast model
+# and want to refresh the scaling schedule on your EKS cluster.
+#
+# Usage:
+#   devctl workflow run update-predictive-scaling.yaml \
+#     --var cluster=my-eks-cluster \
+#     --var forecast_arn=arn:aws:forecast:us-east-1:123456789:forecast/my-forecast \
+#     --var service_name=api-service
+#
+# Run this daily via cron to keep predictions fresh:
+#   0 0 * * * devctl workflow run update-predictive-scaling.yaml --var ...
+
+name: update-predictive-scaling
+description: Refresh predictive scaling schedule from existing Forecast model
+
+vars:
+  # Required
+  cluster: ""
+  forecast_arn: ""
+  service_name: ""
+
+  # Optional with defaults
+  min_nodes: 2
+  requests_per_node: 1000
+  instance_type: "m5.large"
+  nodepool_name: "predictive"
+  buffer: 0.2
+
+steps:
+  - name: Query latest forecast
+    command: aws forecast query
+    params:
+      forecast_arn: "{{ forecast_arn }}"
+      item-id: "{{ service_name }}"
+    on_failure: fail
+
+  - name: Generate scaling recommendations
+    command: aws forecast scaling recommend
+    params:
+      forecast_arn: "{{ forecast_arn }}"
+      item-id: "{{ service_name }}"
+      min-nodes: "{{ min_nodes }}"
+      requests-per-node: "{{ requests_per_node }}"
+      instance-type: "{{ instance_type }}"
+      buffer: "{{ buffer }}"
+      output: "json"
+    on_failure: fail
+
+  - name: Apply updated schedule to cluster
+    command: aws forecast scaling apply
+    params:
+      cluster: "{{ cluster }}"
+      schedule: "/tmp/{{ service_name }}-schedule.json"
+      nodepool-name: "{{ nodepool_name }}"
+    on_failure: fail
+
+  - name: Verify scaling update
+    command: aws forecast scaling status
+    params:
+      cluster: "{{ cluster }}"
+      nodepool: "{{ nodepool_name }}"
+    on_failure: continue

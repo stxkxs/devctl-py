@@ -1,0 +1,137 @@
+# Predictive Auto-Scaling Workflow for EKS with Karpenter
+#
+# This workflow sets up ML-powered predictive scaling using AWS Forecast
+# to anticipate traffic patterns and pre-scale your EKS cluster.
+#
+# Usage:
+#   devctl workflow run predictive-scaling.yaml \
+#     --var cluster=my-eks-cluster \
+#     --var service_name=api-service \
+#     --var s3_bucket=my-forecast-bucket \
+#     --var forecast_role=arn:aws:iam::123456789:role/ForecastRole
+#
+# Prerequisites:
+#   - EKS cluster with Karpenter installed
+#   - S3 bucket for forecast data
+#   - IAM role with Forecast and S3 permissions
+#   - CloudWatch metrics for your workload
+
+name: predictive-scaling
+description: Set up ML-powered predictive auto-scaling for EKS with Karpenter
+
+vars:
+  # Required variables (must be provided)
+  cluster: ""
+  service_name: ""
+  s3_bucket: ""
+  forecast_role: ""
+
+  # Optional variables with defaults
+  cloudwatch_namespace: "AWS/ApplicationELB"
+  cloudwatch_metric: "RequestCount"
+  cloudwatch_dimensions: ""
+  history_days: 90
+  forecast_horizon: 24
+  min_nodes: 2
+  requests_per_node: 1000
+  instance_type: "m5.large"
+  nodepool_name: "predictive"
+
+steps:
+  - name: Validate prerequisites
+    command: aws eks describe
+    params:
+      cluster: "{{ cluster }}"
+    on_failure: fail
+
+  - name: Export CloudWatch metrics to S3
+    command: aws forecast export-metrics
+    params:
+      namespace: "{{ cloudwatch_namespace }}"
+      metric: "{{ cloudwatch_metric }}"
+      dimensions: "{{ cloudwatch_dimensions }}"
+      item-id: "{{ service_name }}"
+      days: "{{ history_days }}"
+      output: "s3://{{ s3_bucket }}/forecast/{{ service_name }}/metrics.csv"
+    on_failure: fail
+
+  - name: Create Forecast dataset
+    command: aws forecast datasets create
+    params:
+      name: "{{ service_name }}-traffic"
+      domain: "CUSTOM"
+      frequency: "H"
+    on_failure: continue  # May already exist
+
+  - name: Create dataset group
+    command: "!aws forecast create-dataset-group"
+    params:
+      dataset-group-name: "{{ service_name }}-group"
+      domain: "CUSTOM"
+    on_failure: continue  # May already exist
+
+  - name: Import metrics into dataset
+    command: aws forecast datasets import
+    params:
+      name: "{{ service_name }}-import-{{ '%Y%m%d' | strftime }}"
+      s3-uri: "s3://{{ s3_bucket }}/forecast/{{ service_name }}/metrics.csv"
+      role: "{{ forecast_role }}"
+    on_failure: fail
+    timeout: 600
+
+  - name: Wait for import to complete
+    command: "!echo 'Waiting for dataset import...'; sleep 60"
+    on_failure: continue
+
+  - name: Create AutoML predictor
+    command: aws forecast predictors create
+    params:
+      name: "{{ service_name }}-predictor"
+      horizon: "{{ forecast_horizon }}"
+      auto-ml: true
+    on_failure: fail
+    timeout: 3600  # Training can take up to an hour
+
+  - name: Wait for predictor training
+    command: "!echo 'Waiting for predictor training (this may take 30-60 minutes)...'"
+    on_failure: continue
+
+  - name: Generate forecast
+    command: aws forecast create
+    params:
+      name: "{{ service_name }}-forecast"
+      predictor: "{{ results['Create AutoML predictor'].stdout | trim }}"
+    on_failure: fail
+    timeout: 1800
+
+  - name: Generate scaling recommendations
+    command: aws forecast scaling recommend
+    params:
+      item-id: "{{ service_name }}"
+      min-nodes: "{{ min_nodes }}"
+      requests-per-node: "{{ requests_per_node }}"
+      instance-type: "{{ instance_type }}"
+      output: "json"
+    on_failure: fail
+
+  - name: Apply predictive scaling to cluster
+    command: aws forecast scaling apply
+    params:
+      cluster: "{{ cluster }}"
+      schedule: "/tmp/{{ service_name }}-schedule.json"
+      nodepool-name: "{{ nodepool_name }}"
+    on_failure: fail
+
+  - name: Verify NodePool created
+    command: aws forecast scaling status
+    params:
+      cluster: "{{ cluster }}"
+      nodepool: "{{ nodepool_name }}"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Predictive scaling enabled for {{ service_name }}"
+      tags: "predictive-scaling,{{ cluster }},{{ service_name }}"
+    on_failure: continue  # Grafana may not be configured
