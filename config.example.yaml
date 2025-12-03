@@ -1,0 +1,141 @@
+# DevCtl Configuration Example
+# Copy this file to ~/.devctl/config.yaml or ./devctl.yaml
+version: "1"
+
+# Global settings - these apply to all commands unless overridden
+global:
+  output_format: table   # table, json, yaml, raw
+  color: auto            # auto, always, never
+  verbosity: info        # debug, info, warning, error
+  dry_run: false         # Set true to preview changes without applying
+  confirm_destructive: true  # Require confirmation for destructive operations
+  timeout: 300           # Default timeout in seconds
+
+# Profile management - switch between environments
+# Usage: devctl --profile production aws s3 ls
+profiles:
+  default:
+    aws:
+      profile: default     # AWS CLI profile name from ~/.aws/credentials
+      region: us-east-1
+      # Explicit credentials (not recommended - use AWS CLI profiles or env vars)
+      # access_key_id: from_env      # Uses DEVCTL_AWS_ACCESS_KEY_ID
+      # secret_access_key: from_env  # Uses DEVCTL_AWS_SECRET_ACCESS_KEY
+
+    grafana:
+      url: https://your-stack.grafana.net
+      api_key: from_env    # Uses DEVCTL_GRAFANA_API_KEY or GRAFANA_API_KEY
+      org_id: 1
+      timeout: 30
+
+    github:
+      token: from_env      # Uses DEVCTL_GITHUB_TOKEN, GITHUB_TOKEN, or GH_TOKEN
+      org: your-org        # Default organization for repo commands
+      base_url: https://api.github.com  # Enterprise: https://github.company.com/api/v3
+      timeout: 30
+
+  staging:
+    aws:
+      profile: staging
+      region: us-east-1
+    grafana:
+      url: https://staging.grafana.net
+    github:
+      org: your-org
+
+  production:
+    aws:
+      profile: production
+      region: us-west-2
+    grafana:
+      url: https://prod.grafana.net
+    github:
+      org: your-org-prod
+
+# Custom workflows - automate multi-step operations
+# Usage: devctl workflow run deploy-service --var service_name=api --var env=staging
+workflows:
+  deploy-service:
+    description: "Deploy a service with health checks and notification"
+    vars:
+      cluster: default-cluster
+      timeout: 300
+    steps:
+      - name: "Build container"
+        command: aws ecr build
+        params:
+          repository: "{{ service_name }}"
+          tag: "{{ version | default('latest') }}"
+          push: true
+
+      - name: "Update ECS service"
+        command: aws ecs deploy
+        params:
+          cluster: "{{ cluster }}"
+          service: "{{ service_name }}"
+
+      - name: "Wait for healthy"
+        command: ops health wait
+        params:
+          target: "{{ service_name }}"
+          type: ecs
+          timeout: "{{ timeout }}"
+        on_failure: continue
+
+      - name: "Create deployment annotation"
+        command: grafana annotations create
+        params:
+          text: "Deployed {{ service_name }} version {{ version | default('latest') }}"
+          tags:
+            - deployment
+            - "{{ env | default('staging') }}"
+
+  cleanup-ecr:
+    description: "Clean up old ECR images across repositories"
+    steps:
+      - name: "List repositories"
+        command: "!aws ecr describe-repositories --query 'repositories[].repositoryName' --output text"
+
+      - name: "Cleanup each repository"
+        command: aws ecr cleanup
+        params:
+          repository: "{{ repo }}"
+          keep: 10
+          untagged_only: true
+
+  backup-grafana:
+    description: "Backup all Grafana dashboards"
+    vars:
+      backup_dir: ./grafana-backups
+    steps:
+      - name: "Create backup directory"
+        command: "!mkdir -p {{ backup_dir }}/{{ lookup('pipe', 'date +%Y%m%d') }}"
+
+      - name: "Export dashboards"
+        command: grafana dashboards backup
+        params:
+          output: "{{ backup_dir }}/{{ lookup('pipe', 'date +%Y%m%d') }}"
+
+      - name: "Export alert rules"
+        command: grafana alerts rules export
+        params:
+          output: "{{ backup_dir }}/{{ lookup('pipe', 'date +%Y%m%d') }}/alerts.json"
+
+  cost-optimization:
+    description: "Run cost optimization checks"
+    steps:
+      - name: "Check AWS costs"
+        command: aws cost summary
+        params:
+          days: 30
+
+      - name: "Find unused resources"
+        command: aws cost unused-resources
+
+      - name: "Check rightsizing recommendations"
+        command: aws cost rightsizing
+
+      - name: "Check unused IAM roles"
+        command: aws iam unused-roles
+        params:
+          days: 90
