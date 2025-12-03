@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from devctl.clients.aws import AWSClientFactory
     from devctl.clients.grafana import GrafanaClient
     from devctl.clients.github import GitHubClient
+    from devctl.clients.jira import JiraClient
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -72,6 +73,7 @@ class DevCtlContext:
         self._aws_factory: AWSClientFactory | None = None
         self._grafana_client: GrafanaClient | None = None
         self._github_client: GitHubClient | None = None
+        self._jira_client: JiraClient | None = None
 
     @property
     def config(self) -> DevCtlConfig:
@@ -149,6 +151,15 @@ class DevCtlContext:
 
             self._github_client = GitHubClient(self.profile.github)
         return self._github_client
+
+    @property
+    def jira(self) -> "JiraClient":
+        """Get or create Jira client."""
+        if self._jira_client is None:
+            from devctl.clients.jira import JiraClient
+
+            self._jira_client = JiraClient(self.profile.jira)
+        return self._jira_client
 
     def confirm(self, message: str, default: bool = False) -> bool:
         """Ask for user confirmation.

@@ -1,0 +1,54 @@
+# Jira Release Notes Workflow
+#
+# Generates release notes by collecting completed issues from a version/sprint.
+#
+# Usage:
+#   devctl workflow run jira-release-notes.yaml \
+#     --var project=PROJ \
+#     --var version="1.2.0"
+#
+# Or for sprint-based releases:
+#   devctl workflow run jira-release-notes.yaml \
+#     --var project=PROJ \
+#     --var sprint="Sprint 42"
+
+name: jira-release-notes
+description: Generate release notes from completed Jira issues
+
+vars:
+  project: ""
+  version: ""
+  sprint: ""
+
+steps:
+  - name: Get completed features
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Story AND status = Done{% if version %} AND fixVersion = '{{ version }}'{% endif %}{% if sprint %} AND sprint = '{{ sprint }}'{% endif %}"
+      max: 100
+      fields: "summary,key,labels"
+    on_failure: continue
+
+  - name: Get bug fixes
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND status = Done{% if version %} AND fixVersion = '{{ version }}'{% endif %}{% if sprint %} AND sprint = '{{ sprint }}'{% endif %}"
+      max: 100
+      fields: "summary,key,priority"
+    on_failure: continue
+
+  - name: Get improvements
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type in (Improvement, Task) AND status = Done{% if version %} AND fixVersion = '{{ version }}'{% endif %}{% if sprint %} AND sprint = '{{ sprint }}'{% endif %}"
+      max: 100
+      fields: "summary,key"
+    on_failure: continue
+
+  - name: Get breaking changes
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND labels = breaking-change AND status = Done{% if version %} AND fixVersion = '{{ version }}'{% endif %}{% if sprint %} AND sprint = '{{ sprint }}'{% endif %}"
+      max: 50
+      fields: "summary,key"
+    on_failure: continue

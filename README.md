@@ -45,6 +45,7 @@ devctl github repos list
 | [AWS Commands](docs/aws-commands.md) | IAM, S3, ECR, EKS, Cost Explorer, CloudWatch |
 | [Predictive Scaling](docs/predictive-scaling.md) | ML-powered auto-scaling with AWS Forecast + Karpenter |
 | [Bedrock AI](docs/bedrock-ai.md) | Agents, batch inference, model comparison |
+| [Jira](docs/jira.md) | Issues, boards, sprints, JQL search |
 | [Workflows](docs/workflows.md) | YAML workflow engine with Jinja2 templating |
 | [Docker](docs/docker.md) | Container usage, CI/CD integration |
 
@@ -73,6 +74,10 @@ devctl
 │   ├── prs          # Pull requests
 │   ├── issues       # Issue tracking
 │   └── releases     # Release management
+├── jira
+│   ├── issues       # Issue search, create, update, transition
+│   ├── boards       # Agile board management
+│   └── sprints      # Sprint operations
 ├── ops
 │   ├── health       # Health checks
 │   └── cost-report  # Cross-service cost analysis

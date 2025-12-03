@@ -85,12 +85,48 @@ class GitHubConfig(BaseModel):
         return os.environ.get("DEVCTL_GITHUB_ORG") or os.environ.get("GITHUB_ORG") or self.org
 
 
+class JiraConfig(BaseModel):
+    """Jira Cloud configuration."""
+
+    url: str | None = None
+    email: str | None = None
+    api_token: str | None = None
+    timeout: int = 30
+
+    def get_url(self) -> str | None:
+        """Get Jira URL from config or environment."""
+        return (
+            os.environ.get("DEVCTL_JIRA_URL")
+            or os.environ.get("JIRA_URL")
+            or self.url
+        )
+
+    def get_email(self) -> str | None:
+        """Get Jira email from config or environment."""
+        return (
+            os.environ.get("DEVCTL_JIRA_EMAIL")
+            or os.environ.get("JIRA_EMAIL")
+            or self.email
+        )
+
+    def get_api_token(self) -> str | None:
+        """Get Jira API token from config or environment."""
+        token = self.api_token
+        if token == "from_env" or token is None:
+            token = (
+                os.environ.get("DEVCTL_JIRA_API_TOKEN")
+                or os.environ.get("JIRA_API_TOKEN")
+            )
+        return token
+
+
 class ProfileConfig(BaseModel):
-    """Profile configuration grouping AWS, Grafana, and GitHub settings."""
+    """Profile configuration grouping AWS, Grafana, GitHub, and Jira settings."""
 
     aws: AWSConfig = Field(default_factory=AWSConfig)
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
     github: GitHubConfig = Field(default_factory=GitHubConfig)
+    jira: JiraConfig = Field(default_factory=JiraConfig)
 
 
 class GlobalConfig(BaseModel):

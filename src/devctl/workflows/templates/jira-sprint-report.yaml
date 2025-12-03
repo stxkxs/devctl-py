@@ -1,0 +1,44 @@
+# Jira Sprint Report Workflow
+#
+# Generates a sprint status report with issue breakdown and progress metrics.
+#
+# Usage:
+#   devctl workflow run jira-sprint-report.yaml \
+#     --var board_id=123
+#
+# Output:
+#   Prints sprint summary with status breakdown to console
+
+name: jira-sprint-report
+description: Generate a sprint status report with issue breakdown
+
+vars:
+  board_id: ""
+
+steps:
+  - name: Get active sprint
+    command: jira sprints active
+    params:
+      board: "{{ board_id }}"
+    on_failure: fail
+
+  - name: List sprint issues
+    command: jira sprints issues
+    params:
+      sprint_id: "{{ results['Get active sprint'].sprint_id }}"
+      max: 100
+    on_failure: fail
+
+  - name: Show in-progress work
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND status = 'In Progress'"
+      max: 50
+    on_failure: continue
+
+  - name: Show blocked issues
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND (status = Blocked OR labels = blocked)"
+      max: 50
+    on_failure: continue

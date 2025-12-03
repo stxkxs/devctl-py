@@ -1,0 +1,53 @@
+# Jira Deployment Ticket Workflow
+#
+# Creates a deployment tracking ticket and links related issues.
+# Useful for change management and deployment tracking.
+#
+# Usage:
+#   devctl workflow run jira-deployment-ticket.yaml \
+#     --var project=PROJ \
+#     --var version="1.2.0" \
+#     --var environment=production \
+#     --var issues="PROJ-123,PROJ-124,PROJ-125"
+
+name: jira-deployment-ticket
+description: Create a deployment tracking ticket with linked issues
+
+vars:
+  project: ""
+  version: ""
+  environment: "production"
+  issues: ""
+  assignee_me: true
+
+steps:
+  - name: Create deployment ticket
+    command: jira issues create
+    params:
+      project_key: "{{ project }}"
+      summary: "Deploy {{ version }} to {{ environment }}"
+      type: "Task"
+      description: "Deployment of version {{ version }} to {{ environment }} environment.\n\nIncluded changes: {{ issues }}"
+      label: "deployment,{{ environment }}"
+    on_failure: fail
+
+  - name: Assign to me
+    command: jira issues assign
+    params:
+      issue_key: "{{ results['Create deployment ticket'].key }}"
+      me: true
+    condition: "{{ assignee_me }}"
+    on_failure: continue
+
+  - name: Link included issues
+    command: "!echo 'Linking issues: {{ issues }}'"
+    on_failure: continue
+    # Note: Individual links would need to be done per-issue
+    # This is a placeholder showing what issues are included
+
+  - name: Add deployment checklist comment
+    command: jira issues comment
+    params:
+      issue_key: "{{ results['Create deployment ticket'].key }}"
+      body: "Deployment Checklist:\n- [ ] Pre-deployment backup\n- [ ] Deploy to staging\n- [ ] Smoke tests passed\n- [ ] Deploy to production\n- [ ] Verify health checks\n- [ ] Monitor for errors\n- [ ] Update status page"
+    on_failure: continue

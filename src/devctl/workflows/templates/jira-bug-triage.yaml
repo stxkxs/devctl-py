@@ -1,0 +1,58 @@
+# Jira Bug Triage Workflow
+#
+# Lists bugs that need triage - unassigned, unprioritized, or missing info.
+#
+# Usage:
+#   devctl workflow run jira-bug-triage.yaml --var project=PROJ
+#
+# Useful for bug triage meetings and backlog grooming.
+
+name: jira-bug-triage
+description: List bugs needing triage - unassigned, unprioritized, or stale
+
+vars:
+  project: ""
+  stale_days: 14
+
+steps:
+  - name: Unassigned bugs
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND assignee is EMPTY AND status not in (Done, Closed)"
+      max: 50
+    on_failure: continue
+
+  - name: Unprioritized bugs
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND priority is EMPTY AND status not in (Done, Closed)"
+      max: 50
+    on_failure: continue
+
+  - name: High priority unassigned
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND priority in (High, Highest) AND assignee is EMPTY AND status not in (Done, Closed)"
+      max: 30
+    on_failure: continue
+
+  - name: Stale bugs (no updates)
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND status not in (Done, Closed) AND updated < -{{ stale_days }}d"
+      max: 50
+    on_failure: continue
+
+  - name: Bugs missing labels
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND labels is EMPTY AND status not in (Done, Closed)"
+      max: 50
+    on_failure: continue
+
+  - name: Critical bugs summary
+    command: jira issues search
+    params:
+      jql: "project = {{ project }} AND type = Bug AND priority = Highest AND status not in (Done, Closed)"
+      max: 20
+    on_failure: continue

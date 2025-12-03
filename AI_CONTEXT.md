@@ -232,6 +232,12 @@ docs/
 2. Create command in `src/devctl/commands/grafana/`
 3. Handle errors consistently
 
+### Adding a New Jira Feature
+1. Add method to `JiraClient` class in `src/devctl/clients/jira.py`
+2. Create or update command in `src/devctl/commands/jira/`
+3. Handle `JiraError` consistently
+4. Update `docs/jira.md`
+
 ### Adding a New Workflow Step Type
 1. Modify `_execute_command` in workflow engine
 2. Add new execution method
@@ -250,6 +256,9 @@ docs/
 - `DEVCTL_AWS_REGION`, `AWS_REGION`, `AWS_DEFAULT_REGION`
 - `DEVCTL_GRAFANA_API_KEY`, `GRAFANA_API_KEY`
 - `DEVCTL_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`
+- `DEVCTL_JIRA_URL`, `JIRA_URL`
+- `DEVCTL_JIRA_EMAIL`, `JIRA_EMAIL`
+- `DEVCTL_JIRA_API_TOKEN`, `JIRA_API_TOKEN`
 
 ### Config File Locations
 1. `~/.devctl/config.yaml` - User defaults
@@ -282,6 +291,7 @@ Custom exceptions in `src/devctl/core/exceptions.py`:
 - `AWSError` - AWS API errors
 - `GrafanaError` - Grafana API errors
 - `GitHubError` - GitHub API errors
+- `JiraError` - Jira API errors
 - `WorkflowError` - Workflow execution errors
 
 ## Next Steps / TODO
@@ -348,6 +358,7 @@ devctl-py/
 │   ├── predictive-scaling.md
 │   ├── workflows.md
 │   ├── bedrock-ai.md
+│   ├── jira.md
 │   └── docker.md
 ├── src/devctl/
 │   ├── __init__.py         # Version
@@ -363,6 +374,7 @@ devctl-py/
 │   │   │   └── ...
 │   │   ├── grafana/        # Grafana commands
 │   │   ├── github/         # GitHub commands
+│   │   ├── jira/           # Jira Cloud commands
 │   │   ├── ops/            # DevOps commands
 │   │   └── workflow.py     # Workflow commands
 │   └── workflows/          # Workflow engine

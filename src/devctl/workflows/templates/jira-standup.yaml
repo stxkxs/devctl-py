@@ -1,0 +1,47 @@
+# Jira Daily Standup Workflow
+#
+# Generates a standup report for the current user showing:
+# - What was completed yesterday
+# - What's in progress today
+# - What's blocked
+#
+# Usage:
+#   devctl workflow run jira-standup.yaml
+#
+# Or for a specific project:
+#   devctl workflow run jira-standup.yaml --var project=PROJ
+
+name: jira-standup
+description: Generate daily standup report from Jira
+
+vars:
+  project: ""
+
+steps:
+  - name: Completed yesterday
+    command: jira issues search
+    params:
+      jql: "assignee = currentUser() AND status changed to Done AFTER startOfDay(-1) BEFORE startOfDay(){% if project %} AND project = {{ project }}{% endif %}"
+      max: 20
+    on_failure: continue
+
+  - name: In progress today
+    command: jira issues search
+    params:
+      jql: "assignee = currentUser() AND status = 'In Progress'{% if project %} AND project = {{ project }}{% endif %}"
+      max: 20
+    on_failure: continue
+
+  - name: Blocked items
+    command: jira issues search
+    params:
+      jql: "assignee = currentUser() AND (status = Blocked OR labels = blocked){% if project %} AND project = {{ project }}{% endif %}"
+      max: 10
+    on_failure: continue
+
+  - name: To do next
+    command: jira issues search
+    params:
+      jql: "assignee = currentUser() AND status = 'To Do' AND sprint in openSprints(){% if project %} AND project = {{ project }}{% endif %} ORDER BY priority DESC, rank ASC"
+      max: 5
+    on_failure: continue

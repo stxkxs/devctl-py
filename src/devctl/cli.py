@@ -168,12 +168,14 @@ def register_commands() -> None:
     from devctl.commands.aws import aws
     from devctl.commands.grafana import grafana
     from devctl.commands.github import github
+    from devctl.commands.jira import jira
     from devctl.commands.ops import ops
     from devctl.commands import workflow
 
     cli.add_command(aws)
     cli.add_command(grafana)
     cli.add_command(github)
+    cli.add_command(jira)
     cli.add_command(ops)
     cli.add_command(workflow.workflow)
 
@@ -203,6 +205,11 @@ def config(ctx: click.Context) -> None:
         "github": {
             "org": devctl_ctx.profile.github.get_org(),
             "has_token": bool(devctl_ctx.profile.github.get_token()),
+        },
+        "jira": {
+            "url": devctl_ctx.profile.jira.get_url(),
+            "email": devctl_ctx.profile.jira.get_email(),
+            "has_token": bool(devctl_ctx.profile.jira.get_api_token()),
         },
     }
     devctl_ctx.output.print_data(config_data, title="Current Configuration")

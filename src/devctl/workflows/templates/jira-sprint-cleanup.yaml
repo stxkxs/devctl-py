@@ -1,0 +1,57 @@
+# Jira Sprint Cleanup Workflow
+#
+# Identifies issues that need attention before sprint ends:
+# - Issues still in "To Do" that should be moved
+# - Issues without estimates
+# - Issues assigned to unavailable team members
+#
+# Usage:
+#   devctl workflow run jira-sprint-cleanup.yaml --var board_id=123
+
+name: jira-sprint-cleanup
+description: Identify issues needing attention before sprint ends
+
+vars:
+  board_id: ""
+
+steps:
+  - name: Get active sprint info
+    command: jira sprints active
+    params:
+      board: "{{ board_id }}"
+    on_failure: fail
+
+  - name: Issues still in To Do
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND status = 'To Do'"
+      max: 50
+    on_failure: continue
+
+  - name: Unassigned sprint issues
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND assignee is EMPTY AND status not in (Done, Closed)"
+      max: 50
+    on_failure: continue
+
+  - name: Issues without story points
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND 'Story Points' is EMPTY AND type in (Story, Bug, Task)"
+      max: 50
+    on_failure: continue
+
+  - name: In progress for too long
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND status = 'In Progress' AND status changed to 'In Progress' BEFORE -3d"
+      max: 30
+    on_failure: continue
+
+  - name: Issues at risk (in progress, near sprint end)
+    command: jira issues search
+    params:
+      jql: "sprint in openSprints() AND status = 'In Progress' AND priority in (High, Highest)"
+      max: 30
+    on_failure: continue

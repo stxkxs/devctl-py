@@ -13,6 +13,7 @@ def test_cli_help(cli_runner: CliRunner):
     assert "aws" in result.output
     assert "grafana" in result.output
     assert "github" in result.output
+    assert "jira" in result.output
 
 
 def test_cli_version(cli_runner: CliRunner):
@@ -81,3 +82,38 @@ def test_cli_quiet_flag(cli_runner: CliRunner):
     """Test quiet flag."""
     result = cli_runner.invoke(cli, ["-q", "--help"])
     assert result.exit_code == 0
+
+
+def test_cli_jira_help(cli_runner: CliRunner):
+    """Test Jira command group help."""
+    result = cli_runner.invoke(cli, ["jira", "--help"])
+    assert result.exit_code == 0
+    assert "Jira" in result.output
+    assert "issues" in result.output
+    assert "boards" in result.output
+    assert "sprints" in result.output
+
+
+def test_cli_jira_issues_help(cli_runner: CliRunner):
+    """Test Jira issues subcommand help."""
+    result = cli_runner.invoke(cli, ["jira", "issues", "--help"])
+    assert result.exit_code == 0
+    assert "search" in result.output
+    assert "create" in result.output
+    assert "transition" in result.output
+
+
+def test_cli_jira_boards_help(cli_runner: CliRunner):
+    """Test Jira boards subcommand help."""
+    result = cli_runner.invoke(cli, ["jira", "boards", "--help"])
+    assert result.exit_code == 0
+    assert "list" in result.output
+    assert "backlog" in result.output
+
+
+def test_cli_jira_sprints_help(cli_runner: CliRunner):
+    """Test Jira sprints subcommand help."""
+    result = cli_runner.invoke(cli, ["jira", "sprints", "--help"])
+    assert result.exit_code == 0
+    assert "list" in result.output
+    assert "active" in result.output

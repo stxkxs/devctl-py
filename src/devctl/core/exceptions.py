@@ -83,6 +83,19 @@ class WorkflowError(DevCtlError):
         self.step = step
 
 
+class JiraError(DevCtlError):
+    """Jira API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.status_code = status_code
+
+
 class AuthenticationError(DevCtlError):
     """Authentication/authorization errors."""
 

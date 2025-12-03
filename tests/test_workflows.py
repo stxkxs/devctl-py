@@ -442,3 +442,56 @@ class TestBuiltinWorkflowTemplates:
                 workflow_dict = yaml.safe_load(f)
             workflow = validate_workflow(workflow_dict)
             assert workflow.name == "predictive-scaling-pipeline"
+
+    def test_jira_standup_template_valid(self):
+        template_path = self.get_templates_path() / "jira-standup.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "jira-standup"
+            assert len(workflow.steps) == 4
+
+    def test_jira_sprint_report_template_valid(self):
+        template_path = self.get_templates_path() / "jira-sprint-report.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "jira-sprint-report"
+            assert "board_id" in workflow.vars
+
+    def test_jira_release_notes_template_valid(self):
+        template_path = self.get_templates_path() / "jira-release-notes.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "jira-release-notes"
+            assert "project" in workflow.vars
+
+    def test_jira_bug_triage_template_valid(self):
+        template_path = self.get_templates_path() / "jira-bug-triage.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "jira-bug-triage"
+            assert len(workflow.steps) == 6
+
+    def test_jira_sprint_cleanup_template_valid(self):
+        template_path = self.get_templates_path() / "jira-sprint-cleanup.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "jira-sprint-cleanup"
+
+    def test_jira_deployment_ticket_template_valid(self):
+        template_path = self.get_templates_path() / "jira-deployment-ticket.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "jira-deployment-ticket"
+            assert "environment" in workflow.vars
