@@ -8,6 +8,7 @@ import click
 
 from devctl.core.context import pass_context, DevCtlContext
 from devctl.core.exceptions import GrafanaError
+from devctl.dashboards import list_templates, get_template, get_template_info
 
 
 @click.group()
@@ -249,3 +250,165 @@ def delete_dashboard(ctx: DevCtlContext, uid: str, yes: bool) -> None:
 
     except Exception as e:
         raise GrafanaError(f"Failed to delete dashboard: {e}")
+
+
+# ============================================================================
+# Dashboard Templates
+# ============================================================================
+
+
+@dashboards.command("templates")
+@pass_context
+def list_dashboard_templates(ctx: DevCtlContext) -> None:
+    """List available dashboard templates.
+
+    \b
+    Built-in templates for devctl workflows:
+        deployment-overview  - Track deployments and rollouts
+        incident-response    - Real-time incident monitoring
+        cost-overview        - AWS cost tracking
+        oncall-overview      - On-call metrics and team health
+        predictive-scaling   - Forecast and capacity monitoring
+    """
+    templates = list_templates()
+
+    if not templates:
+        ctx.output.print_info("No dashboard templates available")
+        return
+
+    data = []
+    for name in templates:
+        try:
+            info = get_template_info(name)
+            data.append({
+                "Name": info["name"],
+                "Title": info["title"][:40],
+                "Description": info["description"][:50],
+                "Tags": info["tags"][:30],
+            })
+        except Exception:
+            data.append({
+                "Name": name,
+                "Title": "-",
+                "Description": "-",
+                "Tags": "-",
+            })
+
+    ctx.output.print_data(
+        data,
+        headers=["Name", "Title", "Description", "Tags"],
+        title=f"Dashboard Templates ({len(data)} available)",
+    )
+
+
+@dashboards.command("template")
+@click.argument("name")
+@click.option("--output", "-o", type=click.Path(), help="Save to file")
+@pass_context
+def show_template(ctx: DevCtlContext, name: str, output: str | None) -> None:
+    """View or export a dashboard template.
+
+    \b
+    Examples:
+        devctl grafana dashboards template deployment-overview
+        devctl grafana dashboards template incident-response -o dashboard.json
+    """
+    try:
+        template = get_template(name)
+
+        json_content = json.dumps(template, indent=2)
+
+        if output:
+            Path(output).write_text(json_content)
+            ctx.output.print_success(f"Template saved to {output}")
+        else:
+            ctx.output.print_code(json_content, "json")
+
+    except ValueError as e:
+        raise GrafanaError(str(e))
+    except Exception as e:
+        raise GrafanaError(f"Failed to get template: {e}")
+
+
+@dashboards.command("deploy-template")
+@click.argument("name")
+@click.option("--folder", help="Target folder UID")
+@click.option("--overwrite", is_flag=True, help="Overwrite if exists")
+@pass_context
+def deploy_template(ctx: DevCtlContext, name: str, folder: str | None, overwrite: bool) -> None:
+    """Deploy a built-in dashboard template to Grafana.
+
+    \b
+    Examples:
+        devctl grafana dashboards deploy-template deployment-overview
+        devctl grafana dashboards deploy-template incident-response --folder devctl
+        devctl grafana dashboards deploy-template cost-overview --overwrite
+    """
+    if ctx.dry_run:
+        ctx.output.print_info(f"Would deploy template: {name}")
+        return
+
+    try:
+        template = get_template(name)
+
+        client = ctx.grafana
+        result = client.create_dashboard(
+            dashboard=template,
+            folder_uid=folder,
+            overwrite=overwrite,
+        )
+
+        ctx.output.print_success(f"Dashboard deployed: {result.get('uid')}")
+        ctx.output.print_info(f"Title: {template.get('title')}")
+        ctx.output.print_info(f"URL: {result.get('url', '-')}")
+
+    except ValueError as e:
+        raise GrafanaError(str(e))
+    except Exception as e:
+        raise GrafanaError(f"Failed to deploy template: {e}")
+
+
+@dashboards.command("deploy-all-templates")
+@click.option("--folder", help="Target folder UID")
+@click.option("--overwrite", is_flag=True, help="Overwrite existing dashboards")
+@pass_context
+def deploy_all_templates(ctx: DevCtlContext, folder: str | None, overwrite: bool) -> None:
+    """Deploy all built-in dashboard templates to Grafana.
+
+    \b
+    Examples:
+        devctl grafana dashboards deploy-all-templates
+        devctl grafana dashboards deploy-all-templates --folder devctl
+    """
+    templates = list_templates()
+
+    if not templates:
+        ctx.output.print_info("No templates to deploy")
+        return
+
+    if ctx.dry_run:
+        ctx.output.print_info(f"Would deploy {len(templates)} templates")
+        for name in templates:
+            ctx.output.print(f"  - {name}")
+        return
+
+    client = ctx.grafana
+    deployed = 0
+    failed = 0
+
+    for name in templates:
+        try:
+            template = get_template(name)
+            result = client.create_dashboard(
+                dashboard=template,
+                folder_uid=folder,
+                overwrite=overwrite,
+            )
+            ctx.output.print_success(f"Deployed: {template.get('title')}")
+            deployed += 1
+
+        except Exception as e:
+            ctx.output.print_error(f"Failed to deploy {name}: {e}")
+            failed += 1
+
+    ctx.output.print_info(f"\nDeployed {deployed} dashboards, {failed} failed")

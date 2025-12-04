@@ -1,0 +1,289 @@
+{
+  "title": "AWS Cost Overview",
+  "description": "Track AWS costs, trends, and optimization opportunities",
+  "tags": ["cost", "devctl", "aws", "finops"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Monthly Spend (MTD)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_billing_estimated_charges_total{currency=\"USD\"}",
+          "legendFormat": "MTD"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Daily Average",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg_over_time(aws_billing_estimated_charges_total{currency=\"USD\"}[7d]) / 7",
+          "legendFormat": "Daily Avg"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Projected Monthly",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(aws_billing_estimated_charges_total{currency=\"USD\"} / day_of_month()) * days_in_month()",
+          "legendFormat": "Projected"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cost Change (7d)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(aws_billing_estimated_charges_total{currency=\"USD\"} - aws_billing_estimated_charges_total{currency=\"USD\"} offset 7d) / aws_billing_estimated_charges_total{currency=\"USD\"} offset 7d * 100",
+          "legendFormat": "Change %"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 25}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Cost Trend",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_billing_estimated_charges_total{currency=\"USD\"}",
+          "legendFormat": "Total Cost"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "fillOpacity": 20
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Cost by Service",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_billing_estimated_charges_by_service_total{currency=\"USD\"}",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": ["value", "percent"]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Top Services (7d)",
+      "type": "bargauge",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, aws_billing_estimated_charges_by_service_total{currency=\"USD\"})",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "EC2 Instances",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_ec2_instance_count)",
+          "legendFormat": "Instances"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "RDS Instances",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_rds_instance_count)",
+          "legendFormat": "Databases"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "S3 Buckets",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_s3_bucket_count)",
+          "legendFormat": "Buckets"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Lambda Functions",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_function_count)",
+          "legendFormat": "Functions"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "EKS Clusters",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_eks_cluster_count)",
+          "legendFormat": "Clusters"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "NAT Gateway GB",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(aws_natgateway_bytes_out_to_destination_total[1d])) / 1024 / 1024 / 1024",
+          "legendFormat": "GB/day"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "gbytes"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Cost Anomalies",
+      "type": "table",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 24},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_ce_anomaly_total_impact_dollars",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Cost Events",
+        "type": "tags",
+        "tags": ["cost", "automation"]
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "refresh": "1h"
+}

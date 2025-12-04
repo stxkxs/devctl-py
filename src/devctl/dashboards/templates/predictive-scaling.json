@@ -1,0 +1,295 @@
+{
+  "title": "Predictive Scaling",
+  "description": "Monitor predictive scaling forecasts and actual capacity",
+  "tags": ["scaling", "devctl", "forecast", "eks", "aws"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 2,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Current Capacity",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_node_status_capacity{resource=\"cpu\"})",
+          "legendFormat": "CPU Cores"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Target Capacity",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_forecast_predicted_capacity",
+          "legendFormat": "Predicted"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Scaling Events (24h)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(aws_autoscaling_scaling_events_total[24h]))",
+          "legendFormat": "Events"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Forecast Accuracy",
+      "type": "gauge",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_forecast_accuracy_weighted_quantile_loss * 100",
+          "legendFormat": "Accuracy"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "green", "value": 90}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Predicted vs Actual Capacity",
+      "type": "timeseries",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 4},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_forecast_predicted_capacity",
+          "legendFormat": "Predicted"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(kube_node_status_capacity{resource=\"cpu\"})",
+          "legendFormat": "Actual"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(kube_node_status_allocatable{resource=\"cpu\"})",
+          "legendFormat": "Allocatable"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "CPU Utilization",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(rate(container_cpu_usage_seconds_total[5m])) * 100",
+          "legendFormat": "CPU Usage %"
+        },
+        {
+          "refId": "B",
+          "expr": "aws_forecast_predicted_cpu_utilization",
+          "legendFormat": "Predicted %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 85}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Memory Utilization",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(container_memory_working_set_bytes) / sum(kube_node_status_capacity{resource=\"memory\"}) * 100",
+          "legendFormat": "Memory Usage %"
+        },
+        {
+          "refId": "B",
+          "expr": "aws_forecast_predicted_memory_utilization",
+          "legendFormat": "Predicted %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Node Count",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 22},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_node_info)",
+          "legendFormat": "Current Nodes"
+        },
+        {
+          "refId": "B",
+          "expr": "aws_autoscaling_group_desired_capacity",
+          "legendFormat": "Desired Capacity"
+        },
+        {
+          "refId": "C",
+          "expr": "aws_autoscaling_group_min_size",
+          "legendFormat": "Min Size"
+        },
+        {
+          "refId": "D",
+          "expr": "aws_autoscaling_group_max_size",
+          "legendFormat": "Max Size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Pending Pods",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 22},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_pod_status_phase{phase=\"Pending\"})",
+          "legendFormat": "Pending Pods"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Scaling History",
+      "type": "table",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 28},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aws_autoscaling_activity_info",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Scaling Events",
+        "type": "tags",
+        "tags": ["scaling"]
+      },
+      {
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(255, 193, 7, 1)",
+        "name": "Forecast Updates",
+        "type": "tags",
+        "tags": ["forecast"]
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "type": "query",
+        "query": "label_values(kube_node_info, cluster)",
+        "refresh": 1
+      },
+      {
+        "name": "nodegroup",
+        "type": "query",
+        "query": "label_values(aws_eks_nodegroup_info, nodegroup)",
+        "refresh": 1
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "refresh": "5m"
+}

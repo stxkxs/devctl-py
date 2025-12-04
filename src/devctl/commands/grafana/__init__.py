@@ -20,9 +20,10 @@ def grafana(ctx: DevCtlContext) -> None:
 
 
 # Import and register subcommands
-from devctl.commands.grafana import dashboards, alerts, datasources, annotations
+from devctl.commands.grafana import dashboards, alerts, datasources, annotations, metrics
 
 grafana.add_command(dashboards.dashboards)
 grafana.add_command(alerts.alerts)
 grafana.add_command(datasources.datasources)
 grafana.add_command(annotations.annotations)
+grafana.add_command(metrics.metrics)
