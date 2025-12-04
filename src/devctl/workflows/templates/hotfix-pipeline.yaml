@@ -1,0 +1,153 @@
+# Hotfix Pipeline Workflow
+#
+# Emergency hotfix deployment:
+# - Cherry-pick commit to release branch
+# - Trigger expedited CI build
+# - Deploy directly to production
+# - Create PagerDuty note
+# - Notify stakeholders
+# - Create follow-up Jira for proper fix
+#
+# Usage:
+#   devctl workflow run hotfix-pipeline.yaml \
+#     --var commit_sha=abc123 \
+#     --var repo=myorg/myapp \
+#     --var incident_id=P123ABC
+
+name: hotfix-pipeline
+description: Emergency hotfix deployment pipeline with expedited CI and production deploy
+
+vars:
+  # Required variables
+  commit_sha: ""
+  repo: ""
+
+  # Optional variables with defaults
+  release_branch: "main"
+  argocd_app: ""
+  incident_id: ""
+  jira_project: "OPS"
+  slack_channel: "#incidents"
+  skip_staging: true
+
+steps:
+  - name: Notify hotfix starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rotating_light: *Hotfix Pipeline Starting*
+
+        *Commit:* {{ commit_sha }}
+        *Repo:* {{ repo }}
+        *Branch:* {{ release_branch }}
+        {{ '*Incident:* ' + incident_id if incident_id else '' }}
+
+        :warning: This is an emergency deployment path.
+    on_failure: continue
+
+  - name: Get commit details
+    command: "!gh api repos/{{ repo }}/commits/{{ commit_sha }} --jq '.commit.message' | head -1"
+    on_failure: continue
+
+  - name: Create hotfix branch
+    command: "!gh api repos/{{ repo }}/git/refs -f ref='refs/heads/hotfix-{{ commit_sha[:7] }}' -f sha='{{ commit_sha }}'"
+    on_failure: continue
+
+  - name: Trigger CI build
+    command: github actions dispatch
+    params:
+      repo: "{{ repo }}"
+      workflow: "build"
+      ref: "hotfix-{{ commit_sha[:7] }}"
+    on_failure: continue
+
+  - name: Wait for CI build
+    command: github actions wait
+    params:
+      repo: "{{ repo }}"
+      branch: "hotfix-{{ commit_sha[:7] }}"
+      timeout: 600
+    on_failure: fail
+    timeout: 660
+
+  - name: Notify CI passed
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Hotfix CI Passed*
+
+        Deploying to production...
+    on_failure: continue
+
+  - name: Deploy to production
+    command: argocd apps sync
+    params:
+      app: "{{ argocd_app | default(repo | replace('/', '-')) }}-prod"
+      revision: "hotfix-{{ commit_sha[:7] }}"
+    on_failure: fail
+    timeout: 300
+
+  - name: Wait for rollout
+    command: argocd apps wait
+    params:
+      app: "{{ argocd_app | default(repo | replace('/', '-')) }}-prod"
+      timeout: 300
+    on_failure: fail
+    timeout: 330
+
+  - name: Add PagerDuty note
+    condition: "{{ incident_id != '' }}"
+    command: pagerduty incidents note
+    params:
+      id: "{{ incident_id }}"
+      note: "Hotfix deployed: {{ commit_sha[:7] }} - {{ results['Get commit details'].stdout | default('') | trim }}"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "HOTFIX: {{ commit_sha[:7] }} deployed to production"
+      tags: "hotfix,deployment,emergency,{{ incident_id | default('') }}"
+    on_failure: continue
+
+  - name: Create follow-up ticket
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Task"
+      summary: "[Hotfix Follow-up] {{ commit_sha[:7] }} - Proper fix needed"
+      description: |
+        A hotfix was deployed to address an urgent issue.
+
+        *Commit:* {{ commit_sha }}
+        *Repo:* {{ repo }}
+        *Incident:* {{ incident_id | default('N/A') }}
+
+        h3. Required Actions
+        * Review hotfix code
+        * Implement proper fix with tests
+        * Cherry-pick to release branch
+        * Ensure staging is updated
+      priority: "High"
+      labels: "hotfix,follow-up,{{ incident_id | default('emergency') }}"
+    on_failure: continue
+
+  - name: Merge hotfix to release branch
+    command: "!gh pr create --repo {{ repo }} --base {{ release_branch }} --head hotfix-{{ commit_sha[:7] }} --title 'Hotfix: {{ commit_sha[:7] }}' --body 'Emergency hotfix - auto-merge' && gh pr merge --repo {{ repo }} --auto --squash"
+    on_failure: continue
+
+  - name: Notify hotfix complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Hotfix Deployed*
+
+        *Commit:* {{ commit_sha[:7] }}
+        *Status:* Production deployment complete
+
+        :warning: Follow-up ticket created for proper fix.
+        {{ 'Incident ' + incident_id + ' updated.' if incident_id else '' }}
+    on_failure: continue

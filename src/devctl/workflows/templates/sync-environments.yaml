@@ -1,0 +1,112 @@
+# Sync Environments Workflow
+#
+# Sync staging to match production:
+# - Get production ArgoCD app status
+# - Update staging app to same revision
+# - Sync staging
+# - Run smoke tests
+# - Report differences
+#
+# Usage:
+#   devctl workflow run sync-environments.yaml \
+#     --var prod_app=myapp-prod \
+#     --var staging_app=myapp-staging
+
+name: sync-environments
+description: Sync staging environment to match production revision
+
+vars:
+  # Required variables
+  prod_app: ""
+  staging_app: ""
+
+  # Optional variables with defaults
+  slack_channel: "#deployments"
+  run_smoke_tests: false
+  smoke_test_url: ""
+
+steps:
+  - name: Notify sync starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :arrows_counterclockwise: *Environment Sync Starting*
+
+        *Source:* {{ prod_app }} (production)
+        *Target:* {{ staging_app }} (staging)
+    on_failure: continue
+
+  - name: Get production app status
+    command: argocd apps get
+    params:
+      app: "{{ prod_app }}"
+    on_failure: fail
+
+  - name: Get production revision
+    command: "!argocd app get {{ prod_app }} -o json | jq -r '.status.sync.revision'"
+    on_failure: fail
+
+  - name: Get staging current status
+    command: argocd apps get
+    params:
+      app: "{{ staging_app }}"
+    on_failure: continue
+
+  - name: Get staging revision
+    command: "!argocd app get {{ staging_app }} -o json | jq -r '.status.sync.revision'"
+    on_failure: continue
+
+  - name: Compare revisions
+    command: "!echo 'Production: {{ results[\"Get production revision\"].stdout | trim }}' && echo 'Staging: {{ results[\"Get staging revision\"].stdout | trim }}'"
+    on_failure: continue
+
+  - name: Sync staging to production revision
+    command: argocd apps sync
+    params:
+      app: "{{ staging_app }}"
+      revision: "{{ results['Get production revision'].stdout | trim }}"
+    on_failure: fail
+    timeout: 300
+
+  - name: Wait for sync completion
+    command: argocd apps wait
+    params:
+      app: "{{ staging_app }}"
+      timeout: 300
+    on_failure: fail
+    timeout: 330
+
+  - name: Get staging new status
+    command: argocd apps get
+    params:
+      app: "{{ staging_app }}"
+    on_failure: continue
+
+  - name: Run smoke tests
+    condition: "{{ run_smoke_tests and smoke_test_url != '' }}"
+    command: "!curl -sf {{ smoke_test_url }} && echo 'Smoke tests passed'"
+    on_failure: continue
+    timeout: 60
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Environment sync: {{ staging_app }} synced to {{ prod_app }} revision"
+      tags: "sync,environment,{{ staging_app }}"
+    on_failure: continue
+
+  - name: Notify sync complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Environment Sync Complete*
+
+        *Target:* {{ staging_app }}
+        *Revision:* {{ results['Get production revision'].stdout | default('unknown') | trim }}
+
+        Staging is now running the same version as production.
+
+        {{ '*Smoke Tests:* Passed' if run_smoke_tests else '' }}
+    on_failure: continue

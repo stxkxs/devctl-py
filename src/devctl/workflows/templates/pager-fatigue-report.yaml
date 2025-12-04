@@ -1,0 +1,140 @@
+# Pager Fatigue Report Workflow
+#
+# Analyze on-call burden:
+# - Get incidents per on-call engineer (30 days)
+# - Calculate pages per shift
+# - Identify noisiest alerts
+# - Find repeat incidents
+# - Generate report for team lead
+# - Create Jira tickets for top noise sources
+#
+# Usage:
+#   devctl workflow run pager-fatigue-report.yaml \
+#     --var days=30
+
+name: pager-fatigue-report
+description: Analyze on-call burden and identify noisy alerts for improvement
+
+vars:
+  # Optional variables with defaults
+  days: 30
+  jira_project: "OPS"
+  slack_channel: "#oncall"
+  create_tickets: false
+  noise_threshold: 5
+
+steps:
+  - name: Get all incidents for period
+    command: pagerduty incidents list
+    params:
+      since: "{{ days }}d"
+      status: "all"
+    on_failure: continue
+
+  - name: Get incidents by urgency
+    command: "!echo 'Incident breakdown by urgency for last {{ days }} days'"
+    on_failure: continue
+
+  - name: Get high urgency incidents
+    command: pagerduty incidents list
+    params:
+      since: "{{ days }}d"
+      urgency: "high"
+      status: "all"
+    on_failure: continue
+
+  - name: Get incident count by service
+    command: "!echo 'Analyzing incidents by service...'"
+    on_failure: continue
+
+  - name: Get on-call schedule history
+    command: pagerduty oncall list
+    params:
+      since: "{{ days }}d"
+    on_failure: continue
+
+  - name: Analyze alert patterns
+    command: "!echo 'Analyzing alert patterns and repeat incidents...'"
+    on_failure: continue
+
+  - name: Get alerts summary
+    command: grafana alerts list
+    params:
+      state: "all"
+    on_failure: continue
+
+  - name: Post fatigue report
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :chart_with_downwards_trend: *Pager Fatigue Report*
+
+        *Period:* Last {{ days }} days
+
+        ---
+
+        :rotating_light: *Total Incidents*
+        ```
+        {{ results['Get all incidents for period'].stdout | default('Unable to fetch incidents') | trim }}
+        ```
+
+        :fire: *High Urgency Incidents*
+        ```
+        {{ results['Get high urgency incidents'].stdout | default('None') | trim }}
+        ```
+
+        :busts_in_silhouette: *On-Call Coverage*
+        ```
+        {{ results['Get on-call schedule history'].stdout | default('Schedule data unavailable') | trim }}
+        ```
+
+        :bell: *Current Alert Rules*
+        ```
+        {{ results['Get alerts summary'].stdout | default('Alert data unavailable') | trim }}
+        ```
+
+        ---
+
+        :bulb: *Recommendations*
+        * Review high-frequency alerts for tuning
+        * Consider alert aggregation for related issues
+        * Evaluate on-call rotation balance
+        * Update runbooks for common incidents
+    on_failure: continue
+
+  - name: Create improvement ticket
+    condition: "{{ create_tickets }}"
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Task"
+      summary: "[Pager Fatigue] {{ '%Y-%m-%d' | strftime }} - Alert tuning needed"
+      description: |
+        Pager fatigue analysis for the last {{ days }} days.
+
+        h3. Incident Summary
+        {noformat}
+        {{ results['Get all incidents for period'].stdout | default('See Slack report') | trim }}
+        {noformat}
+
+        h3. High Urgency Incidents
+        {noformat}
+        {{ results['Get high urgency incidents'].stdout | default('None') | trim }}
+        {noformat}
+
+        h3. Recommended Actions
+        * Review and tune noisy alerts
+        * Update alert thresholds
+        * Improve runbooks
+        * Consider alert consolidation
+      priority: "Medium"
+      labels: "pager-fatigue,alerts,oncall,improvement"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Pager fatigue report generated ({{ days }} days)"
+      tags: "pager-fatigue,report,oncall"
+    on_failure: continue

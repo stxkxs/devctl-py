@@ -1,0 +1,127 @@
+# Dependency Update Workflow
+#
+# Automated dependency updates:
+# - Check for outdated dependencies
+# - Create PR with updates
+# - Link to security advisories if applicable
+# - Assign to on-call developer
+# - Create Jira ticket for tracking
+#
+# Usage:
+#   devctl workflow run dependency-update.yaml \
+#     --var repo=myorg/myapp \
+#     --var package_manager=npm
+
+name: dependency-update
+description: Automated dependency update check with PR creation and security advisory linking
+
+vars:
+  # Required variables
+  repo: ""
+  package_manager: "npm"
+
+  # Optional variables with defaults
+  jira_project: "OPS"
+  slack_channel: "#engineering"
+  create_pr: false
+  security_only: false
+  assignee: ""
+
+steps:
+  - name: Notify check starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :package: *Dependency Update Check Starting*
+
+        *Repo:* {{ repo }}
+        *Package Manager:* {{ package_manager }}
+        *Mode:* {{ 'Security updates only' if security_only else 'All updates' }}
+    on_failure: continue
+
+  - name: Check for security advisories
+    command: "!gh api repos/{{ repo }}/dependabot/alerts --jq '.[] | select(.state==\"open\") | \"- \" + .security_advisory.summary + \" (\" + .dependency.package.name + \")\"' 2>/dev/null || echo 'No Dependabot alerts or not enabled'"
+    on_failure: continue
+
+  - name: Check outdated npm packages
+    condition: "{{ package_manager == 'npm' }}"
+    command: "!gh api repos/{{ repo }}/contents/package.json --jq '.content' | base64 -d | jq -r '.dependencies // {} | keys[]' | head -20"
+    on_failure: continue
+
+  - name: Check outdated pip packages
+    condition: "{{ package_manager == 'pip' }}"
+    command: "!gh api repos/{{ repo }}/contents/requirements.txt --jq '.content' | base64 -d | grep -v '^#' | head -20"
+    on_failure: continue
+
+  - name: Check outdated go modules
+    condition: "{{ package_manager == 'go' }}"
+    command: "!gh api repos/{{ repo }}/contents/go.mod --jq '.content' | base64 -d | grep -E '^\\s+[a-z]' | head -20"
+    on_failure: continue
+
+  - name: Get Dependabot PRs
+    command: "!gh pr list --repo {{ repo }} --author 'app/dependabot' --state open --json number,title --jq '.[] | \"#\" + (.number|tostring) + \": \" + .title'"
+    on_failure: continue
+
+  - name: Create tracking Jira ticket
+    condition: "{{ jira_project != '' }}"
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Task"
+      summary: "[Dependencies] {{ repo }} - {{ '%Y-%m-%d' | strftime }} update review"
+      description: |
+        Automated dependency update check for {{ repo }}.
+
+        *Package Manager:* {{ package_manager }}
+        *Date:* {{ '%Y-%m-%d' | strftime }}
+
+        h3. Security Advisories
+        {noformat}
+        {{ results['Check for security advisories'].stdout | default('None found') | trim }}
+        {noformat}
+
+        h3. Open Dependabot PRs
+        {noformat}
+        {{ results['Get Dependabot PRs'].stdout | default('None') | trim }}
+        {noformat}
+
+        h3. Actions Required
+        * Review security advisories
+        * Merge Dependabot PRs after testing
+        * Update any manually managed dependencies
+      priority: "{{ 'High' if security_only else 'Medium' }}"
+      labels: "dependencies,{{ package_manager }},automated"
+    on_failure: continue
+
+  - name: Post report
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :package: *Dependency Update Report*
+
+        *Repo:* {{ repo }}
+        *Package Manager:* {{ package_manager }}
+
+        ---
+
+        :shield: *Security Advisories*
+        ```
+        {{ results['Check for security advisories'].stdout | default('None found or Dependabot not enabled') | trim }}
+        ```
+
+        :robot_face: *Open Dependabot PRs*
+        ```
+        {{ results['Get Dependabot PRs'].stdout | default('No open PRs') | trim }}
+        ```
+
+        {{ 'Tracking ticket created in ' + jira_project if jira_project else '' }}
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Dependency check: {{ repo }}"
+      tags: "dependencies,{{ package_manager }},{{ repo | replace('/', '-') }}"
+    on_failure: continue

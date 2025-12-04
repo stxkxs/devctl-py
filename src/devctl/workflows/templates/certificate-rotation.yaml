@@ -1,0 +1,116 @@
+# Certificate Rotation Workflow
+#
+# TLS certificate rotation:
+# - Backup existing certificate
+# - Generate or fetch new certificate
+# - Update Kubernetes secret
+# - Trigger deployment rollout
+# - Verify HTTPS endpoint
+# - Notify security team
+#
+# Usage:
+#   devctl workflow run certificate-rotation.yaml \
+#     --var secret_name=api-tls \
+#     --var namespace=production \
+#     --var cert_source=acm
+
+name: certificate-rotation
+description: Rotate TLS certificates with backup, update, and verification
+
+vars:
+  # Required variables
+  secret_name: ""
+  namespace: "default"
+
+  # Optional variables with defaults
+  cert_source: "manual"
+  acm_arn: ""
+  verify_url: ""
+  deployments: ""
+  slack_channel: "#security"
+  backup_path: "/tmp/cert-backup"
+
+steps:
+  - name: Notify rotation starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :lock: *Certificate Rotation Starting*
+
+        *Secret:* {{ secret_name }}
+        *Namespace:* {{ namespace }}
+        *Source:* {{ cert_source }}
+
+        Backing up existing certificate...
+    on_failure: continue
+
+  - name: Backup existing secret
+    command: "!kubectl get secret {{ secret_name }} -n {{ namespace }} -o yaml > {{ backup_path }}/{{ secret_name }}-{{ '%Y%m%d%H%M%S' | strftime }}.yaml && echo 'Backup created'"
+    on_failure: continue
+
+  - name: Get current certificate expiry
+    command: "!kubectl get secret {{ secret_name }} -n {{ namespace }} -o jsonpath='{.data.tls\\.crt}' | base64 -d | openssl x509 -noout -enddate 2>/dev/null || echo 'Could not read certificate'"
+    on_failure: continue
+
+  - name: Fetch new certificate from ACM
+    condition: "{{ cert_source == 'acm' and acm_arn != '' }}"
+    command: "!aws acm get-certificate --certificate-arn {{ acm_arn }} --query 'Certificate' --output text > {{ backup_path }}/new-cert.pem"
+    on_failure: fail
+
+  - name: Update Kubernetes secret
+    command: "!kubectl create secret tls {{ secret_name }} -n {{ namespace }} --cert={{ backup_path }}/new-cert.pem --key={{ backup_path }}/new-key.pem --dry-run=client -o yaml | kubectl apply -f -"
+    on_failure: fail
+
+  - name: Verify secret updated
+    command: "!kubectl get secret {{ secret_name }} -n {{ namespace }} -o jsonpath='{.metadata.resourceVersion}'"
+    on_failure: continue
+
+  - name: Rollout deployments
+    condition: "{{ deployments != '' }}"
+    command: "!echo '{{ deployments }}' | tr ',' '\n' | xargs -I {} kubectl rollout restart deployment/{} -n {{ namespace }}"
+    on_failure: continue
+
+  - name: Wait for rollouts
+    condition: "{{ deployments != '' }}"
+    command: "!echo '{{ deployments }}' | tr ',' '\n' | xargs -I {} kubectl rollout status deployment/{} -n {{ namespace }} --timeout=300s"
+    on_failure: continue
+    timeout: 330
+
+  - name: Verify HTTPS endpoint
+    condition: "{{ verify_url != '' }}"
+    command: "!curl -sf {{ verify_url }} && echo 'HTTPS verification passed'"
+    on_failure: continue
+    timeout: 30
+
+  - name: Get new certificate expiry
+    command: "!kubectl get secret {{ secret_name }} -n {{ namespace }} -o jsonpath='{.data.tls\\.crt}' | base64 -d | openssl x509 -noout -enddate 2>/dev/null || echo 'Could not read certificate'"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Certificate rotated: {{ secret_name }} in {{ namespace }}"
+      tags: "security,certificate,rotation,{{ namespace }}"
+    on_failure: continue
+
+  - name: Notify rotation complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Certificate Rotation Complete*
+
+        *Secret:* {{ secret_name }}
+        *Namespace:* {{ namespace }}
+
+        *Previous Expiry:*
+        {{ results['Get current certificate expiry'].stdout | default('Unknown') | trim }}
+
+        *New Expiry:*
+        {{ results['Get new certificate expiry'].stdout | default('Unknown') | trim }}
+
+        {{ '*HTTPS Verified:* ' + verify_url if verify_url else '' }}
+
+        Backup saved to {{ backup_path }}
+    on_failure: continue

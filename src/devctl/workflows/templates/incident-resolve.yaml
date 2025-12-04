@@ -1,0 +1,112 @@
+# Incident Resolution Workflow
+#
+# Close out an incident:
+# - Resolve PagerDuty incident
+# - Post resolution summary to Slack
+# - Update Confluence incident page
+# - Create follow-up Jira tickets if needed
+# - Remove alert silences
+#
+# Usage:
+#   devctl workflow run incident-resolve.yaml \
+#     --var incident_id=P123ABC \
+#     --var resolution_summary="Restarted the database connection pool"
+
+name: incident-resolve
+description: Resolve incident with documentation updates and optional follow-up tickets
+
+vars:
+  # Required variables
+  incident_id: ""
+  resolution_summary: ""
+
+  # Optional variables with defaults
+  slack_channel: ""
+  notify_channel: "#incidents"
+  create_followup: false
+  jira_project: "OPS"
+  confluence_space: "OPS"
+  root_cause: ""
+
+steps:
+  - name: Get incident details
+    command: pagerduty incidents get
+    params:
+      id: "{{ incident_id }}"
+    on_failure: continue
+
+  - name: Resolve PagerDuty incident
+    command: pagerduty incidents resolve
+    params:
+      id: "{{ incident_id }}"
+      resolution: "{{ resolution_summary }}"
+    on_failure: continue
+
+  - name: Remove alert silences
+    command: grafana alerts silence expire
+    params:
+      comment: "{{ incident_id }}"
+    on_failure: continue
+
+  - name: Post resolution to incident channel
+    condition: "{{ slack_channel != '' }}"
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Incident Resolved*
+
+        *Resolution:* {{ resolution_summary }}
+
+        {{ '*Root Cause:* ' + root_cause if root_cause else '' }}
+
+        Alert silences have been removed.
+        Postmortem should be scheduled within 48 hours.
+    on_failure: continue
+
+  - name: Post to main incidents channel
+    command: slack send
+    params:
+      channel: "{{ notify_channel }}"
+      message: |
+        :white_check_mark: *Incident Resolved*
+
+        *ID:* {{ incident_id }}
+        *Resolution:* {{ resolution_summary }}
+
+        {{ 'Incident channel: #' + slack_channel if slack_channel else '' }}
+    on_failure: continue
+
+  - name: Create follow-up ticket
+    condition: "{{ create_followup }}"
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Task"
+      summary: "[Follow-up] {{ incident_id }} - Post-incident tasks"
+      description: |
+        Follow-up tasks for incident {{ incident_id }}.
+
+        *Resolution:* {{ resolution_summary }}
+
+        *Root Cause:* {{ root_cause | default('To be determined') }}
+
+        h3. Tasks
+        * Schedule postmortem meeting
+        * Complete postmortem document
+        * Implement action items
+        * Review monitoring/alerting
+      priority: "High"
+      labels: "incident,follow-up,{{ incident_id }}"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "RESOLVED: {{ incident_id }} - {{ resolution_summary }}"
+      tags: "incident,resolved,{{ incident_id }}"
+    on_failure: continue
+
+  - name: Summary
+    command: "!echo 'Incident {{ incident_id }} resolved successfully'"
+    on_failure: continue

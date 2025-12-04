@@ -1,0 +1,110 @@
+# Incident Emergency Scale Workflow
+#
+# Emergency scaling response:
+# - Scale EKS node group immediately
+# - Silence non-critical Grafana alerts
+# - Create Grafana annotation marking incident
+# - Notify ops channel
+# - Log scaling action for audit
+#
+# Usage:
+#   devctl workflow run incident-scale-emergency.yaml \
+#     --var cluster=production \
+#     --var nodegroup=workers \
+#     --var target_count=20
+
+name: incident-scale-emergency
+description: Emergency scale-up during incident with alert silencing and notifications
+
+vars:
+  # Required variables
+  cluster: ""
+  nodegroup: ""
+  target_count: ""
+
+  # Optional variables with defaults
+  silence_duration: "1h"
+  slack_channel: "#incidents"
+  incident_id: ""
+  reason: "Emergency scale-up during incident"
+
+steps:
+  - name: Notify scaling starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rotating_light: *Emergency Scale-Up Initiated*
+
+        *Cluster:* {{ cluster }}
+        *Node Group:* {{ nodegroup }}
+        *Target Count:* {{ target_count }}
+        *Reason:* {{ reason }}
+
+        Scaling in progress...
+    on_failure: continue
+
+  - name: Get current node count
+    command: aws eks nodegroups describe
+    params:
+      cluster: "{{ cluster }}"
+      nodegroup: "{{ nodegroup }}"
+    on_failure: continue
+
+  - name: Scale up node group
+    command: aws eks nodegroups scale
+    params:
+      cluster: "{{ cluster }}"
+      nodegroup: "{{ nodegroup }}"
+      desired: "{{ target_count }}"
+    on_failure: fail
+
+  - name: Silence non-critical alerts
+    command: grafana alerts silence
+    params:
+      matchers: "severity!=critical"
+      duration: "{{ silence_duration }}"
+      comment: "Emergency scaling in progress - {{ reason }}"
+    on_failure: continue
+
+  - name: Create incident annotation
+    command: grafana annotations create
+    params:
+      text: "INCIDENT SCALE: {{ cluster }}/{{ nodegroup }} scaled to {{ target_count }} nodes - {{ reason }}"
+      tags: "incident,scaling,emergency,{{ cluster }}"
+    on_failure: continue
+
+  - name: Wait for nodes to join
+    command: "!echo 'Waiting 60s for nodes to start joining cluster...'; sleep 60"
+    on_failure: continue
+    timeout: 90
+
+  - name: Check node status
+    command: kubernetes nodes list
+    params:
+      selector: "eks.amazonaws.com/nodegroup={{ nodegroup }}"
+    on_failure: continue
+
+  - name: Log to PagerDuty
+    condition: "{{ incident_id != '' }}"
+    command: pagerduty incidents note
+    params:
+      id: "{{ incident_id }}"
+      note: "Emergency scale-up: {{ cluster }}/{{ nodegroup }} scaled to {{ target_count }} nodes"
+    on_failure: continue
+
+  - name: Notify scaling complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Emergency Scale-Up Complete*
+
+        *Cluster:* {{ cluster }}
+        *Node Group:* {{ nodegroup }}
+        *New Count:* {{ target_count }}
+
+        Non-critical alerts silenced for {{ silence_duration }}.
+
+        :warning: Remember to scale down after incident is resolved.
+    on_failure: continue

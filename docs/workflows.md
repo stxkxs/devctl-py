@@ -329,23 +329,51 @@ devctl workflow show deploy-service
 
 | Template | Description |
 |----------|-------------|
+| **Predictive Scaling** | |
 | `predictive-scaling` | Full ML pipeline for predictive auto-scaling |
 | `update-predictive-scaling` | Refresh scaling from existing forecast |
 | `predictive-scaling-pipeline` | Continuous daily pipeline |
+| **Jira** | |
 | `jira-standup` | Generate daily standup report from Jira |
 | `jira-sprint-report` | Sprint status and progress report |
 | `jira-sprint-cleanup` | Identify issues needing attention before sprint ends |
 | `jira-release-notes` | Generate release notes from Jira issues |
 | `jira-bug-triage` | Bug triage workflow with prioritization |
 | `jira-deployment-ticket` | Create deployment tracking ticket |
+| **Incident Response** | |
 | `incident-response` | Full incident lifecycle (PagerDuty, Slack, Confluence) |
+| `incident-postmortem` | Create postmortem with timeline and action items |
+| `incident-scale-emergency` | Emergency scale-up with alert silencing |
+| `incident-resolve` | Resolve incident with documentation updates |
+| **Deployment** | |
 | `deploy-with-jira` | Deploy with Jira tracking and notifications |
-| `daily-ops-report` | Morning ops report (costs, incidents, alerts) |
-| `pr-to-deploy` | GitOps pipeline from PR merge to production |
+| `canary-deploy-monitored` | Canary deployment with automatic rollback |
+| `blue-green-switch` | Blue-green deployment switch with verification |
+| `hotfix-pipeline` | Emergency hotfix deployment pipeline |
 | `rollback-notify` | Rollback with Jira ticket and notifications |
+| **Operations** | |
+| `daily-ops-report` | Morning ops report (costs, incidents, alerts) |
 | `weekly-cost-review` | Cost analysis with optimization recommendations |
+| `pod-restart-investigation` | Investigate pod crash loops with logs |
+| `certificate-rotation` | TLS certificate rotation with verification |
+| `database-maintenance` | Database maintenance with alert silencing |
+| `log-analysis` | Analyze logs for error patterns |
+| **GitOps / CI-CD** | |
+| `pr-to-deploy` | GitOps pipeline from PR merge to production |
+| `release-train` | Cut a release with changelog and tagging |
+| `feature-branch-cleanup` | Clean up stale branches |
+| `sync-environments` | Sync staging to match production |
+| `dependency-update` | Automated dependency update check |
+| **On-Call** | |
 | `oncall-handoff` | On-call shift handoff report |
+| `oncall-start-shift` | Start of shift checklist and status |
+| `escalation-path` | Escalate unacknowledged incidents |
+| `pager-fatigue-report` | Analyze on-call burden and noisy alerts |
+| **Compliance / Security** | |
 | `access-review-quarterly` | Quarterly IAM access review for compliance |
+| `security-scan-report` | Security scanning with vulnerability reporting |
+| `secrets-rotation` | Rotate secrets with health verification |
+| `vulnerability-triage` | Triage vulnerabilities with ticket creation |
 
 ```bash
 # List templates

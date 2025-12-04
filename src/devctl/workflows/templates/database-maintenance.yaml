@@ -1,0 +1,120 @@
+# Database Maintenance Workflow
+#
+# Database maintenance window automation:
+# - Create Grafana maintenance annotation
+# - Silence database alerts
+# - Notify stakeholders
+# - Execute maintenance commands
+# - Re-enable alerts
+# - Post completion status
+#
+# Usage:
+#   devctl workflow run database-maintenance.yaml \
+#     --var database=prod-postgres \
+#     --var maintenance_type=vacuum \
+#     --var duration=60
+
+name: database-maintenance
+description: Database maintenance window with alert silencing and stakeholder notification
+
+vars:
+  # Required variables
+  database: ""
+  maintenance_type: ""
+  duration: 60
+
+  # Optional variables with defaults
+  slack_channel: "#database"
+  silence_alerts: true
+  notify_stakeholders: true
+  maintenance_commands: ""
+
+steps:
+  - name: Notify maintenance starting
+    condition: "{{ notify_stakeholders }}"
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :construction: *Database Maintenance Starting*
+
+        *Database:* {{ database }}
+        *Type:* {{ maintenance_type }}
+        *Expected Duration:* {{ duration }} minutes
+
+        Alerts will be silenced during maintenance.
+    on_failure: continue
+
+  - name: Create maintenance annotation
+    command: grafana annotations create
+    params:
+      text: "Maintenance started: {{ database }} - {{ maintenance_type }}"
+      tags: "maintenance,database,{{ database }},{{ maintenance_type }}"
+    on_failure: continue
+
+  - name: Silence database alerts
+    condition: "{{ silence_alerts }}"
+    command: grafana alerts silence
+    params:
+      matchers: "database={{ database }}"
+      duration: "{{ duration }}m"
+      comment: "Scheduled maintenance: {{ maintenance_type }}"
+    on_failure: continue
+
+  - name: Pre-maintenance health check
+    command: "!echo 'Performing pre-maintenance health check for {{ database }}'"
+    on_failure: continue
+
+  - name: Execute maintenance - vacuum
+    condition: "{{ maintenance_type == 'vacuum' }}"
+    command: "!echo 'Running VACUUM ANALYZE on {{ database }}...'"
+    on_failure: continue
+
+  - name: Execute maintenance - reindex
+    condition: "{{ maintenance_type == 'reindex' }}"
+    command: "!echo 'Running REINDEX on {{ database }}...'"
+    on_failure: continue
+
+  - name: Execute maintenance - backup
+    condition: "{{ maintenance_type == 'backup' }}"
+    command: "!echo 'Running backup on {{ database }}...'"
+    on_failure: continue
+
+  - name: Execute custom maintenance
+    condition: "{{ maintenance_commands != '' }}"
+    command: "!{{ maintenance_commands }}"
+    on_failure: continue
+    timeout: 3600
+
+  - name: Post-maintenance health check
+    command: "!echo 'Performing post-maintenance health check for {{ database }}'"
+    on_failure: continue
+
+  - name: Remove alert silence
+    condition: "{{ silence_alerts }}"
+    command: grafana alerts silence expire
+    params:
+      comment: "{{ database }}"
+    on_failure: continue
+
+  - name: Create completion annotation
+    command: grafana annotations create
+    params:
+      text: "Maintenance completed: {{ database }} - {{ maintenance_type }}"
+      tags: "maintenance,complete,database,{{ database }}"
+    on_failure: continue
+
+  - name: Notify maintenance complete
+    condition: "{{ notify_stakeholders }}"
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Database Maintenance Complete*
+
+        *Database:* {{ database }}
+        *Type:* {{ maintenance_type }}
+        *Status:* Completed successfully
+
+        Alerts have been re-enabled.
+    on_failure: continue

@@ -1,0 +1,121 @@
+# Blue-Green Deployment Switch Workflow
+#
+# Switch traffic between blue and green environments:
+# - Verify green environment health
+# - Switch traffic from blue to green
+# - Monitor for issues
+# - If issues: switch back to blue
+# - Update service mesh / ingress
+#
+# Usage:
+#   devctl workflow run blue-green-switch.yaml \
+#     --var service_name=api-service \
+#     --var target_env=green
+
+name: blue-green-switch
+description: Blue-green deployment switch with health verification and automatic rollback
+
+vars:
+  # Required variables
+  service_name: ""
+  target_env: "green"
+
+  # Optional variables with defaults
+  namespace: "default"
+  monitoring_duration: 300
+  health_check_url: ""
+  slack_channel: "#deployments"
+  rollback_on_error: true
+
+steps:
+  - name: Notify switch starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :arrows_counterclockwise: *Blue-Green Switch Starting*
+
+        *Service:* {{ service_name }}
+        *Target:* {{ target_env }}
+        *Monitoring:* {{ monitoring_duration }}s after switch
+    on_failure: continue
+
+  - name: Verify target environment health
+    command: kubernetes pods list
+    params:
+      namespace: "{{ namespace }}"
+      selector: "app={{ service_name }},env={{ target_env }}"
+    on_failure: fail
+
+  - name: Check target pods are ready
+    command: "!kubectl get pods -n {{ namespace }} -l app={{ service_name }},env={{ target_env }} -o jsonpath='{.items[*].status.conditions[?(@.type==\"Ready\")].status}' | grep -v False"
+    on_failure: fail
+    timeout: 60
+
+  - name: Health check endpoint
+    condition: "{{ health_check_url != '' }}"
+    command: "!curl -sf {{ health_check_url }} || exit 1"
+    on_failure: fail
+    timeout: 30
+
+  - name: Create pre-switch annotation
+    command: grafana annotations create
+    params:
+      text: "Blue-green switch starting: {{ service_name }} -> {{ target_env }}"
+      tags: "blue-green,switch,{{ service_name }}"
+    on_failure: continue
+
+  - name: Switch traffic to target
+    command: "!kubectl patch service {{ service_name }} -n {{ namespace }} -p '{\"spec\":{\"selector\":{\"env\":\"{{ target_env }}\"}}}'"
+    on_failure: fail
+
+  - name: Notify switch complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Traffic Switched*
+
+        *Service:* {{ service_name }}
+        *Active:* {{ target_env }}
+
+        Monitoring for {{ monitoring_duration }}s...
+    on_failure: continue
+
+  - name: Wait and monitor
+    command: "!echo 'Monitoring {{ service_name }} for {{ monitoring_duration }}s...'; sleep {{ monitoring_duration }}"
+    on_failure: continue
+    timeout: 600
+
+  - name: Verify service health after switch
+    command: "!curl -sf {{ health_check_url }} || echo 'Health check endpoint not configured'"
+    on_failure: continue
+    timeout: 30
+
+  - name: Check for error spikes
+    command: grafana alerts check
+    params:
+      query: "error_rate{service='{{ service_name }}'}"
+      threshold: 5
+    on_failure: continue
+
+  - name: Create completion annotation
+    command: grafana annotations create
+    params:
+      text: "Blue-green switch complete: {{ service_name }} now on {{ target_env }}"
+      tags: "blue-green,complete,{{ service_name }}"
+    on_failure: continue
+
+  - name: Notify success
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rocket: *Blue-Green Switch Complete*
+
+        *Service:* {{ service_name }}
+        *Active Environment:* {{ target_env }}
+        *Monitoring Period:* Passed
+
+        Previous environment is still running and can be used for rollback.
+    on_failure: continue

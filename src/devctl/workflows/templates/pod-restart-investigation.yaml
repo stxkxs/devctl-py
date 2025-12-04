@@ -1,0 +1,158 @@
+# Pod Restart Investigation Workflow
+#
+# Investigate pod crash loops:
+# - Get pod events and status
+# - Fetch recent logs (before crash)
+# - Check resource usage (CPU/memory)
+# - Get node conditions
+# - Check for OOMKilled
+# - Create summary report
+#
+# Usage:
+#   devctl workflow run pod-restart-investigation.yaml \
+#     --var pod_name=api-service-abc123 \
+#     --var namespace=production
+
+name: pod-restart-investigation
+description: Investigate pod crash loops with logs, events, and resource analysis
+
+vars:
+  # Required variables
+  pod_name: ""
+  namespace: "default"
+
+  # Optional variables with defaults
+  lookback: "1h"
+  slack_channel: "#ops"
+  create_ticket: false
+  jira_project: "OPS"
+
+steps:
+  - name: Get pod status
+    command: kubernetes pods get
+    params:
+      name: "{{ pod_name }}"
+      namespace: "{{ namespace }}"
+    on_failure: continue
+
+  - name: Get pod events
+    command: kubernetes events list
+    params:
+      namespace: "{{ namespace }}"
+      field_selector: "involvedObject.name={{ pod_name }}"
+    on_failure: continue
+
+  - name: Get pod logs (current)
+    command: kubernetes pods logs
+    params:
+      name: "{{ pod_name }}"
+      namespace: "{{ namespace }}"
+      tail: 100
+    on_failure: continue
+
+  - name: Get pod logs (previous)
+    command: kubernetes pods logs
+    params:
+      name: "{{ pod_name }}"
+      namespace: "{{ namespace }}"
+      previous: true
+      tail: 100
+    on_failure: continue
+
+  - name: Get pod describe
+    command: "!kubectl describe pod {{ pod_name }} -n {{ namespace }}"
+    on_failure: continue
+
+  - name: Check for OOMKilled
+    command: "!kubectl get pod {{ pod_name }} -n {{ namespace }} -o jsonpath='{.status.containerStatuses[*].lastState.terminated.reason}' | grep -i oom || echo 'No OOMKilled detected'"
+    on_failure: continue
+
+  - name: Get node info
+    command: "!kubectl get pod {{ pod_name }} -n {{ namespace }} -o jsonpath='{.spec.nodeName}' | xargs -I {} kubectl describe node {}"
+    on_failure: continue
+    timeout: 60
+
+  - name: Get resource usage
+    command: "!kubectl top pod {{ pod_name }} -n {{ namespace }} 2>/dev/null || echo 'Metrics not available'"
+    on_failure: continue
+
+  - name: Get deployment info
+    command: "!kubectl get pod {{ pod_name }} -n {{ namespace }} -o jsonpath='{.metadata.ownerReferences[0].name}' | xargs -I {} kubectl get deployment {} -n {{ namespace }} -o yaml"
+    on_failure: continue
+
+  - name: Check recent deployments
+    command: "!kubectl rollout history deployment -n {{ namespace }} 2>/dev/null | head -20"
+    on_failure: continue
+
+  - name: Post investigation report
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :mag: *Pod Restart Investigation*
+
+        *Pod:* {{ pod_name }}
+        *Namespace:* {{ namespace }}
+
+        ---
+
+        :information_source: *Status*
+        ```
+        {{ results['Get pod status'].stdout | default('Status unavailable') | trim }}
+        ```
+
+        :warning: *OOM Check*
+        ```
+        {{ results['Check for OOMKilled'].stdout | default('Check unavailable') | trim }}
+        ```
+
+        :page_facing_up: *Events*
+        ```
+        {{ results['Get pod events'].stdout | default('No events') | trim }}
+        ```
+
+        :scroll: *Previous Logs (last 100 lines)*
+        ```
+        {{ results['Get pod logs (previous)'].stdout | default('No previous logs') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Create Jira ticket
+    condition: "{{ create_ticket }}"
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Bug"
+      summary: "[Pod Crash] {{ pod_name }} in {{ namespace }}"
+      description: |
+        Pod {{ pod_name }} is experiencing restarts in {{ namespace }}.
+
+        h3. Pod Status
+        {noformat}
+        {{ results['Get pod status'].stdout | default('Unavailable') | trim }}
+        {noformat}
+
+        h3. Events
+        {noformat}
+        {{ results['Get pod events'].stdout | default('No events') | trim }}
+        {noformat}
+
+        h3. OOM Check
+        {noformat}
+        {{ results['Check for OOMKilled'].stdout | default('Unavailable') | trim }}
+        {noformat}
+
+        h3. Investigation Needed
+        * Review application logs
+        * Check resource limits
+        * Review recent deployments
+      priority: "High"
+      labels: "pod-crash,{{ namespace }},investigation"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Pod investigation: {{ pod_name }} in {{ namespace }}"
+      tags: "investigation,pod-crash,{{ namespace }}"
+    on_failure: continue

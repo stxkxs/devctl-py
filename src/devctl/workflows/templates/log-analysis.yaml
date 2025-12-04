@@ -1,0 +1,150 @@
+# Log Analysis Workflow
+#
+# Analyze logs for patterns:
+# - Search CloudWatch/Loki for error patterns
+# - Aggregate error counts by type
+# - Identify top error sources
+# - Generate report
+# - Create Jira tickets for critical issues
+#
+# Usage:
+#   devctl workflow run log-analysis.yaml \
+#     --var service=api-service \
+#     --var time_range=24h
+
+name: log-analysis
+description: Analyze logs for error patterns and create tickets for critical issues
+
+vars:
+  # Required variables
+  service: ""
+
+  # Optional variables with defaults
+  time_range: "24h"
+  error_patterns: "ERROR,Exception,FATAL,CRITICAL"
+  slack_channel: "#ops"
+  create_tickets: false
+  jira_project: "OPS"
+  log_source: "cloudwatch"
+
+steps:
+  - name: Search for errors
+    command: logs search
+    params:
+      source: "{{ log_source }}"
+      query: "{{ service }} AND ({{ error_patterns | replace(',', ' OR ') }})"
+      time_range: "{{ time_range }}"
+    on_failure: continue
+
+  - name: Search for exceptions
+    command: logs search
+    params:
+      source: "{{ log_source }}"
+      query: "{{ service }} AND Exception"
+      time_range: "{{ time_range }}"
+    on_failure: continue
+
+  - name: Search for timeouts
+    command: logs search
+    params:
+      source: "{{ log_source }}"
+      query: "{{ service }} AND (timeout OR Timeout OR TIMEOUT)"
+      time_range: "{{ time_range }}"
+    on_failure: continue
+
+  - name: Search for connection errors
+    command: logs search
+    params:
+      source: "{{ log_source }}"
+      query: "{{ service }} AND (connection refused OR ECONNREFUSED OR connection reset)"
+      time_range: "{{ time_range }}"
+    on_failure: continue
+
+  - name: Search for OOM errors
+    command: logs search
+    params:
+      source: "{{ log_source }}"
+      query: "{{ service }} AND (OutOfMemory OR OOMKilled OR heap space)"
+      time_range: "{{ time_range }}"
+    on_failure: continue
+
+  - name: Get error count summary
+    command: "!echo 'Error analysis for {{ service }} over {{ time_range }}'"
+    on_failure: continue
+
+  - name: Post analysis report
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :mag: *Log Analysis Report*
+
+        *Service:* {{ service }}
+        *Time Range:* {{ time_range }}
+
+        ---
+
+        :x: *Errors*
+        ```
+        {{ results['Search for errors'].stdout | default('No errors found') | trim }}
+        ```
+
+        :boom: *Exceptions*
+        ```
+        {{ results['Search for exceptions'].stdout | default('No exceptions found') | trim }}
+        ```
+
+        :hourglass: *Timeouts*
+        ```
+        {{ results['Search for timeouts'].stdout | default('No timeouts found') | trim }}
+        ```
+
+        :electric_plug: *Connection Errors*
+        ```
+        {{ results['Search for connection errors'].stdout | default('No connection errors found') | trim }}
+        ```
+
+        :floppy_disk: *Memory Issues*
+        ```
+        {{ results['Search for OOM errors'].stdout | default('No OOM errors found') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Create Jira ticket for errors
+    condition: "{{ create_tickets }}"
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Bug"
+      summary: "[Log Analysis] {{ service }} - Error patterns detected"
+      description: |
+        Automated log analysis detected error patterns for {{ service }}.
+
+        *Time Range:* {{ time_range }}
+        *Log Source:* {{ log_source }}
+
+        h3. Errors Found
+        {noformat}
+        {{ results['Search for errors'].stdout | default('None') | trim }}
+        {noformat}
+
+        h3. Exceptions
+        {noformat}
+        {{ results['Search for exceptions'].stdout | default('None') | trim }}
+        {noformat}
+
+        h3. Recommended Actions
+        * Review error patterns
+        * Check recent deployments
+        * Review resource utilization
+        * Update error handling if needed
+      priority: "Medium"
+      labels: "log-analysis,{{ service }},automated"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Log analysis completed for {{ service }}"
+      tags: "log-analysis,{{ service }}"
+    on_failure: continue

@@ -585,3 +585,209 @@ class TestBuiltinWorkflowTemplates:
             assert "jira_project" in workflow.vars
             assert "confluence_space" in workflow.vars
             assert len(workflow.steps) >= 10
+
+    # Incident Response Workflows
+    def test_incident_postmortem_template_valid(self):
+        template_path = self.get_templates_path() / "incident-postmortem.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "incident-postmortem"
+            assert "incident_id" in workflow.vars
+            assert "slack_channel" in workflow.vars
+
+    def test_incident_scale_emergency_template_valid(self):
+        template_path = self.get_templates_path() / "incident-scale-emergency.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "incident-scale-emergency"
+            assert "cluster" in workflow.vars
+            assert "nodegroup" in workflow.vars
+            assert "target_count" in workflow.vars
+
+    def test_incident_resolve_template_valid(self):
+        template_path = self.get_templates_path() / "incident-resolve.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "incident-resolve"
+            assert "incident_id" in workflow.vars
+            assert "resolution_summary" in workflow.vars
+
+    # Deployment Workflows
+    def test_canary_deploy_monitored_template_valid(self):
+        template_path = self.get_templates_path() / "canary-deploy-monitored.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "canary-deploy-monitored"
+            assert "app_name" in workflow.vars
+            assert "image" in workflow.vars
+            assert "error_threshold" in workflow.vars
+
+    def test_blue_green_switch_template_valid(self):
+        template_path = self.get_templates_path() / "blue-green-switch.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "blue-green-switch"
+            assert "service_name" in workflow.vars
+            assert "target_env" in workflow.vars
+
+    def test_hotfix_pipeline_template_valid(self):
+        template_path = self.get_templates_path() / "hotfix-pipeline.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "hotfix-pipeline"
+            assert "commit_sha" in workflow.vars
+            assert "repo" in workflow.vars
+
+    # Operations Workflows
+    def test_pod_restart_investigation_template_valid(self):
+        template_path = self.get_templates_path() / "pod-restart-investigation.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "pod-restart-investigation"
+            assert "pod_name" in workflow.vars
+            assert "namespace" in workflow.vars
+
+    def test_certificate_rotation_template_valid(self):
+        template_path = self.get_templates_path() / "certificate-rotation.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "certificate-rotation"
+            assert "secret_name" in workflow.vars
+            assert "namespace" in workflow.vars
+
+    def test_database_maintenance_template_valid(self):
+        template_path = self.get_templates_path() / "database-maintenance.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "database-maintenance"
+            assert "database" in workflow.vars
+            assert "maintenance_type" in workflow.vars
+
+    def test_log_analysis_template_valid(self):
+        template_path = self.get_templates_path() / "log-analysis.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "log-analysis"
+            assert "service" in workflow.vars
+            assert "time_range" in workflow.vars
+
+    # GitOps / CI-CD Workflows
+    def test_release_train_template_valid(self):
+        template_path = self.get_templates_path() / "release-train.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "release-train"
+            assert "version" in workflow.vars
+            assert "repo" in workflow.vars
+
+    def test_feature_branch_cleanup_template_valid(self):
+        template_path = self.get_templates_path() / "feature-branch-cleanup.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "feature-branch-cleanup"
+            assert "repo" in workflow.vars
+            assert "days_stale" in workflow.vars
+
+    def test_sync_environments_template_valid(self):
+        template_path = self.get_templates_path() / "sync-environments.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "sync-environments"
+            assert "prod_app" in workflow.vars
+            assert "staging_app" in workflow.vars
+
+    def test_dependency_update_template_valid(self):
+        template_path = self.get_templates_path() / "dependency-update.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "dependency-update"
+            assert "repo" in workflow.vars
+            assert "package_manager" in workflow.vars
+
+    # On-Call Workflows
+    def test_escalation_path_template_valid(self):
+        template_path = self.get_templates_path() / "escalation-path.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "escalation-path"
+            assert "incident_id" in workflow.vars
+
+    def test_oncall_start_shift_template_valid(self):
+        template_path = self.get_templates_path() / "oncall-start-shift.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "oncall-start-shift"
+            assert "slack_channel" in workflow.vars
+
+    def test_pager_fatigue_report_template_valid(self):
+        template_path = self.get_templates_path() / "pager-fatigue-report.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "pager-fatigue-report"
+            assert "days" in workflow.vars
+            assert "slack_channel" in workflow.vars
+
+    # Compliance / Security Workflows
+    def test_security_scan_report_template_valid(self):
+        template_path = self.get_templates_path() / "security-scan-report.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "security-scan-report"
+            assert "confluence_space" in workflow.vars
+            assert "jira_project" in workflow.vars
+
+    def test_secrets_rotation_template_valid(self):
+        template_path = self.get_templates_path() / "secrets-rotation.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "secrets-rotation"
+            assert "secret_name" in workflow.vars
+            assert "namespace" in workflow.vars
+
+    def test_vulnerability_triage_template_valid(self):
+        template_path = self.get_templates_path() / "vulnerability-triage.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "vulnerability-triage"
+            assert "ecr_repos" in workflow.vars
+            assert "jira_project" in workflow.vars

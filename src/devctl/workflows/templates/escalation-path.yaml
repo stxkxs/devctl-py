@@ -1,0 +1,86 @@
+# Escalation Path Workflow
+#
+# Alert escalation when not acknowledged:
+# - Check if incident was acked within SLA
+# - If not: escalate to backup on-call
+# - If still not acked: page engineering manager
+# - Post escalation to incident channel
+# - Update PagerDuty incident
+#
+# Usage:
+#   devctl workflow run escalation-path.yaml \
+#     --var incident_id=P123ABC \
+#     --var ack_sla_minutes=5
+
+name: escalation-path
+description: Escalate unacknowledged incidents through the escalation chain
+
+vars:
+  # Required variables
+  incident_id: ""
+
+  # Optional variables with defaults
+  ack_sla_minutes: 5
+  slack_channel: "#incidents"
+  escalation_policy: "default"
+
+steps:
+  - name: Get incident details
+    command: pagerduty incidents get
+    params:
+      id: "{{ incident_id }}"
+    on_failure: fail
+
+  - name: Check incident status
+    command: "!echo 'Checking if incident {{ incident_id }} has been acknowledged...'"
+    on_failure: continue
+
+  - name: Get incident acknowledgement status
+    command: pagerduty incidents status
+    params:
+      id: "{{ incident_id }}"
+    on_failure: continue
+
+  - name: Escalate incident
+    command: pagerduty incidents escalate
+    params:
+      id: "{{ incident_id }}"
+      escalation_level: 2
+    on_failure: continue
+
+  - name: Add escalation note
+    command: pagerduty incidents note
+    params:
+      id: "{{ incident_id }}"
+      note: "Auto-escalated: Not acknowledged within {{ ack_sla_minutes }} minute SLA"
+    on_failure: continue
+
+  - name: Get backup on-call
+    command: pagerduty oncall current
+    params:
+      schedule: "backup"
+    on_failure: continue
+
+  - name: Post escalation to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rotating_light: *Incident Escalated*
+
+        *Incident:* {{ incident_id }}
+        *Reason:* Not acknowledged within {{ ack_sla_minutes }} minute SLA
+
+        Escalating to next level in escalation policy.
+
+        *Backup On-Call:* {{ results['Get backup on-call'].stdout | default('Check PagerDuty') | trim }}
+
+        Please respond immediately.
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Incident escalated: {{ incident_id }}"
+      tags: "escalation,incident,{{ incident_id }}"
+    on_failure: continue

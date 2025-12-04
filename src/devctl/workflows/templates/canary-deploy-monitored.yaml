@@ -1,0 +1,155 @@
+# Canary Deployment with Monitoring Workflow
+#
+# Canary deployment with automatic rollback:
+# - Deploy canary version (10% traffic)
+# - Monitor Grafana error rates
+# - If error rate > threshold: automatic rollback
+# - If healthy: promote to 50%, then 100%
+# - Notify team of outcome
+#
+# Usage:
+#   devctl workflow run canary-deploy-monitored.yaml \
+#     --var app_name=api-service \
+#     --var image=myrepo/api:v2.0.0
+
+name: canary-deploy-monitored
+description: Canary deployment with automatic rollback based on error rate monitoring
+
+vars:
+  # Required variables
+  app_name: ""
+  image: ""
+
+  # Optional variables with defaults
+  namespace: "default"
+  error_threshold: 5
+  canary_duration: 300
+  slack_channel: "#deployments"
+  jira_ticket: ""
+  initial_weight: 10
+  promote_weight: 50
+
+steps:
+  - name: Notify canary starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :canary: *Canary Deployment Starting*
+
+        *App:* {{ app_name }}
+        *Image:* {{ image }}
+        *Initial Traffic:* {{ initial_weight }}%
+        *Error Threshold:* {{ error_threshold }}%
+        *Monitoring Duration:* {{ canary_duration }}s per stage
+    on_failure: continue
+
+  - name: Deploy canary version
+    command: deploy create
+    params:
+      name: "{{ app_name }}"
+      image: "{{ image }}"
+      namespace: "{{ namespace }}"
+      strategy: "canary"
+      weight: "{{ initial_weight }}"
+    on_failure: fail
+
+  - name: Create canary annotation
+    command: grafana annotations create
+    params:
+      text: "Canary started: {{ app_name }} {{ image }} ({{ initial_weight }}%)"
+      tags: "canary,deployment,{{ app_name }}"
+    on_failure: continue
+
+  - name: Wait for canary stabilization
+    command: "!echo 'Monitoring canary for {{ canary_duration }}s at {{ initial_weight }}% traffic...'; sleep {{ canary_duration }}"
+    on_failure: continue
+    timeout: 600
+
+  - name: Check error rate stage 1
+    command: grafana alerts check
+    params:
+      query: "error_rate{app='{{ app_name }}'}"
+      threshold: "{{ error_threshold }}"
+    on_failure: continue
+
+  - name: Notify stage 1 passed
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Canary Stage 1 Passed*
+
+        Error rate within threshold. Promoting to {{ promote_weight }}% traffic...
+    on_failure: continue
+
+  - name: Promote to stage 2
+    command: deploy promote
+    params:
+      name: "{{ app_name }}"
+      namespace: "{{ namespace }}"
+      weight: "{{ promote_weight }}"
+    on_failure: fail
+
+  - name: Wait for stage 2 stabilization
+    command: "!echo 'Monitoring canary for {{ canary_duration }}s at {{ promote_weight }}% traffic...'; sleep {{ canary_duration }}"
+    on_failure: continue
+    timeout: 600
+
+  - name: Check error rate stage 2
+    command: grafana alerts check
+    params:
+      query: "error_rate{app='{{ app_name }}'}"
+      threshold: "{{ error_threshold }}"
+    on_failure: continue
+
+  - name: Notify stage 2 passed
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Canary Stage 2 Passed*
+
+        Error rate within threshold. Promoting to 100% traffic...
+    on_failure: continue
+
+  - name: Promote to full traffic
+    command: deploy promote
+    params:
+      name: "{{ app_name }}"
+      namespace: "{{ namespace }}"
+      weight: 100
+    on_failure: fail
+
+  - name: Update Jira ticket
+    condition: "{{ jira_ticket != '' }}"
+    command: jira issues comment
+    params:
+      issue: "{{ jira_ticket }}"
+      body: |
+        Canary deployment completed successfully.
+
+        * Image: {{ image }}
+        * All stages passed error rate threshold ({{ error_threshold }}%)
+    on_failure: continue
+
+  - name: Create completion annotation
+    command: grafana annotations create
+    params:
+      text: "Canary complete: {{ app_name }} {{ image }} promoted to 100%"
+      tags: "canary,deployment,complete,{{ app_name }}"
+    on_failure: continue
+
+  - name: Notify deployment complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rocket: *Canary Deployment Complete*
+
+        *App:* {{ app_name }}
+        *Image:* {{ image }}
+        *Status:* Successfully promoted to 100%
+
+        All canary stages passed error rate threshold.
+    on_failure: continue

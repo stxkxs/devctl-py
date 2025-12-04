@@ -1,0 +1,112 @@
+# On-Call Start Shift Workflow
+#
+# Start of shift checklist:
+# - Get handoff notes from previous shift
+# - Check current system health
+# - List active Grafana alerts
+# - List open PagerDuty incidents
+# - Check deployment schedule
+# - Post "on-call started" to Slack
+#
+# Usage:
+#   devctl workflow run oncall-start-shift.yaml
+
+name: oncall-start-shift
+description: Start of on-call shift checklist and status report
+
+vars:
+  # Optional variables with defaults
+  slack_channel: "#oncall"
+  pagerduty_schedule: "primary"
+
+steps:
+  - name: Get current on-call
+    command: pagerduty oncall current
+    params:
+      schedule: "{{ pagerduty_schedule }}"
+    on_failure: continue
+
+  - name: Get open incidents
+    command: pagerduty incidents list
+    params:
+      status: "triggered,acknowledged"
+    on_failure: continue
+
+  - name: Get recent incidents (last 24h)
+    command: pagerduty incidents list
+    params:
+      since: "24h"
+      status: "all"
+    on_failure: continue
+
+  - name: Get firing alerts
+    command: grafana alerts list
+    params:
+      state: "firing"
+    on_failure: continue
+
+  - name: Get pending alerts
+    command: grafana alerts list
+    params:
+      state: "pending"
+    on_failure: continue
+
+  - name: Check ArgoCD app health
+    command: argocd apps list
+    on_failure: continue
+
+  - name: Get recent deployments
+    command: "!argocd app list -o json | jq -r '.[] | select(.status.operationState.finishedAt > (now - 86400 | todate)) | .metadata.name + \": \" + .status.sync.status' 2>/dev/null || echo 'No recent deployments'"
+    on_failure: continue
+
+  - name: Check Kubernetes cluster health
+    command: kubernetes nodes list
+    on_failure: continue
+
+  - name: Post shift start notification
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :wave: *On-Call Shift Started*
+
+        *On-Call:* {{ results['Get current on-call'].stdout | default('Unknown') | trim }}
+        *Time:* {{ '%Y-%m-%d %H:%M UTC' | strftime }}
+
+        ---
+
+        :rotating_light: *Open Incidents*
+        ```
+        {{ results['Get open incidents'].stdout | default('No open incidents') | trim }}
+        ```
+
+        :bell: *Firing Alerts*
+        ```
+        {{ results['Get firing alerts'].stdout | default('No firing alerts') | trim }}
+        ```
+
+        :warning: *Pending Alerts*
+        ```
+        {{ results['Get pending alerts'].stdout | default('No pending alerts') | trim }}
+        ```
+
+        :rocket: *Recent Deployments (24h)*
+        ```
+        {{ results['Get recent deployments'].stdout | default('No recent deployments') | trim }}
+        ```
+
+        :clipboard: *Recent Incidents (24h)*
+        ```
+        {{ results['Get recent incidents (last 24h)'].stdout | default('No incidents in last 24h') | trim }}
+        ```
+
+        ---
+        Good luck! :four_leaf_clover:
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "On-call shift started"
+      tags: "oncall,shift-start"
+    on_failure: continue

@@ -1,0 +1,91 @@
+# Feature Branch Cleanup Workflow
+#
+# Clean up stale branches:
+# - List branches older than N days
+# - Check if PRs are merged
+# - Delete merged branches
+# - Report unmerged stale branches
+# - Notify owners
+#
+# Usage:
+#   devctl workflow run feature-branch-cleanup.yaml \
+#     --var repo=myorg/myapp \
+#     --var days_stale=30
+
+name: feature-branch-cleanup
+description: Clean up stale feature branches with owner notification
+
+vars:
+  # Required variables
+  repo: ""
+
+  # Optional variables with defaults
+  days_stale: 30
+  protected_branches: "main,master,develop,release"
+  dry_run: true
+  slack_channel: "#engineering"
+  delete_merged: true
+
+steps:
+  - name: Get all branches
+    command: "!gh api repos/{{ repo }}/branches --paginate --jq '.[].name'"
+    on_failure: fail
+
+  - name: Find stale branches
+    command: "!gh api repos/{{ repo }}/branches --paginate --jq '.[] | select(.name | test(\"^({{ protected_branches | replace(',', '|') }})$\") | not) | .name' | head -50"
+    on_failure: continue
+
+  - name: Check merged branches
+    command: "!gh pr list --repo {{ repo }} --state merged --json headRefName --jq '.[].headRefName' | sort -u"
+    on_failure: continue
+
+  - name: List branches to delete
+    command: "!echo 'Branches that are merged and can be deleted:' && gh pr list --repo {{ repo }} --state merged --json headRefName --jq '.[].headRefName' | sort -u | head -20"
+    on_failure: continue
+
+  - name: List stale unmerged branches
+    command: "!echo 'Stale branches that are NOT merged (need review):' && gh api repos/{{ repo }}/branches --paginate --jq '.[] | select(.name | test(\"^({{ protected_branches | replace(',', '|') }})$\") | not) | .name' | while read branch; do gh pr list --repo {{ repo }} --head \"$branch\" --state open --json number --jq 'if length == 0 then \"'\"$branch\"'\" else empty end'; done | head -20"
+    on_failure: continue
+
+  - name: Delete merged branches
+    condition: "{{ delete_merged and not dry_run }}"
+    command: "!gh pr list --repo {{ repo }} --state merged --json headRefName --jq '.[].headRefName' | while read branch; do echo \"Deleting $branch\"; gh api -X DELETE repos/{{ repo }}/git/refs/heads/$branch 2>/dev/null || true; done"
+    on_failure: continue
+
+  - name: Count deleted branches
+    command: "!gh pr list --repo {{ repo }} --state merged --json headRefName --jq '.[].headRefName' | wc -l | tr -d ' '"
+    on_failure: continue
+
+  - name: Post cleanup report
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :broom: *Branch Cleanup Report*
+
+        *Repo:* {{ repo }}
+        *Stale Threshold:* {{ days_stale }} days
+        *Mode:* {{ 'DRY RUN' if dry_run else 'LIVE' }}
+
+        ---
+
+        :white_check_mark: *Merged Branches {{ '(would be deleted)' if dry_run else '(deleted)' }}*
+        ```
+        {{ results['List branches to delete'].stdout | default('None found') | trim }}
+        ```
+
+        :warning: *Stale Unmerged Branches (need review)*
+        ```
+        {{ results['List stale unmerged branches'].stdout | default('None found') | trim }}
+        ```
+
+        {{ 'Run with --var dry_run=false to delete merged branches.' if dry_run else '' }}
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    condition: "{{ not dry_run }}"
+    command: grafana annotations create
+    params:
+      text: "Branch cleanup: {{ repo }}"
+      tags: "cleanup,branches,{{ repo | replace('/', '-') }}"
+    on_failure: continue

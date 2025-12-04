@@ -1,0 +1,112 @@
+# Release Train Workflow
+#
+# Cut a new release:
+# - Create release branch from main
+# - Update version in package files
+# - Generate changelog from merged PRs
+# - Create Jira version
+# - Tag release in git
+# - Create GitHub release with notes
+# - Notify team
+#
+# Usage:
+#   devctl workflow run release-train.yaml \
+#     --var version=v1.2.0 \
+#     --var repo=myorg/myapp
+
+name: release-train
+description: Cut a new release with changelog, tagging, and notifications
+
+vars:
+  # Required variables
+  version: ""
+  repo: ""
+
+  # Optional variables with defaults
+  base_branch: "main"
+  jira_project: ""
+  slack_channel: "#releases"
+  create_jira_version: true
+  generate_changelog: true
+
+steps:
+  - name: Notify release starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :package: *Release Train Starting*
+
+        *Version:* {{ version }}
+        *Repo:* {{ repo }}
+        *Base:* {{ base_branch }}
+    on_failure: continue
+
+  - name: Get merged PRs since last release
+    command: "!gh pr list --repo {{ repo }} --state merged --base {{ base_branch }} --json number,title,author --limit 50"
+    on_failure: continue
+
+  - name: Get last release tag
+    command: "!gh release list --repo {{ repo }} --limit 1 --json tagName --jq '.[0].tagName'"
+    on_failure: continue
+
+  - name: Generate changelog
+    condition: "{{ generate_changelog }}"
+    command: "!gh pr list --repo {{ repo }} --state merged --base {{ base_branch }} --json number,title,labels --limit 50 --jq '.[] | \"- \" + .title + \" (#\" + (.number|tostring) + \")\"'"
+    on_failure: continue
+
+  - name: Create release branch
+    command: "!gh api repos/{{ repo }}/git/refs -f ref='refs/heads/release/{{ version }}' -f sha=$(gh api repos/{{ repo }}/git/refs/heads/{{ base_branch }} --jq '.object.sha')"
+    on_failure: continue
+
+  - name: Create git tag
+    command: "!gh api repos/{{ repo }}/git/refs -f ref='refs/tags/{{ version }}' -f sha=$(gh api repos/{{ repo }}/git/refs/heads/{{ base_branch }} --jq '.object.sha')"
+    on_failure: fail
+
+  - name: Create GitHub release
+    command: "!gh release create {{ version }} --repo {{ repo }} --title '{{ version }}' --notes '## Changelog\n\n{{ results[\"Generate changelog\"].stdout | default(\"See PR list for changes\") | trim }}'"
+    on_failure: fail
+
+  - name: Create Jira version
+    condition: "{{ create_jira_version and jira_project != '' }}"
+    command: jira versions create
+    params:
+      project: "{{ jira_project }}"
+      name: "{{ version }}"
+      released: true
+      release_date: "{{ '%Y-%m-%d' | strftime }}"
+    on_failure: continue
+
+  - name: Update Jira tickets with fix version
+    condition: "{{ jira_project != '' }}"
+    command: jira issues search
+    params:
+      jql: "project = {{ jira_project }} AND status = Done AND fixVersion is EMPTY"
+      max: 50
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Release {{ version }} created for {{ repo }}"
+      tags: "release,{{ version }},{{ repo | replace('/', '-') }}"
+    on_failure: continue
+
+  - name: Notify release complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rocket: *Release {{ version }} Created*
+
+        *Repo:* {{ repo }}
+        *Tag:* {{ version }}
+        *Branch:* release/{{ version }}
+
+        *Changelog:*
+        ```
+        {{ results['Generate changelog'].stdout | default('See GitHub release for details') | trim }}
+        ```
+
+        GitHub Release: https://github.com/{{ repo }}/releases/tag/{{ version }}
+    on_failure: continue
