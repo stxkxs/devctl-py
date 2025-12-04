@@ -4,7 +4,7 @@ This document provides context for AI agents continuing development on this proj
 
 ## Project Overview
 
-DevCtl is a Python CLI tool for unified DevOps operations across AWS, Grafana Cloud, and GitHub. It's built with Click framework and follows SRE best practices.
+DevCtl is a Python CLI tool for unified DevOps operations across AWS, Grafana Cloud, GitHub, Kubernetes, PagerDuty, ArgoCD, Slack, Confluence, and compliance tooling. It's built with Click framework and follows SRE best practices.
 
 ## Architecture Decisions
 
@@ -44,13 +44,14 @@ DevCtl is a Python CLI tool for unified DevOps operations across AWS, Grafana Cl
 
 ### Context Object (`src/devctl/core/context.py`)
 - Shared state across commands via Click's context mechanism
-- Lazy-loaded clients (AWS, Grafana, GitHub)
+- Lazy-loaded clients (AWS, Grafana, GitHub, Jira, K8s, PagerDuty, ArgoCD, Slack, Confluence)
 - Output formatting and logging configuration
 - Dry-run support
 
 ### Client Architecture (`src/devctl/clients/`)
 - Factory pattern for AWS clients with session management
-- HTTP clients for Grafana and GitHub APIs
+- HTTP clients for Grafana, GitHub, Jira, PagerDuty, ArgoCD, Slack, Confluence APIs
+- Kubernetes client using official `kubernetes` Python package
 - Error handling wrappers that convert to custom exceptions
 
 ### Command Structure
@@ -70,6 +71,31 @@ DevCtl is a Python CLI tool for unified DevOps operations across AWS, Grafana Cl
 - Integration with EKS/Karpenter for node scaling
 - Commands: export-metrics, datasets, predictors, scaling
 - Generates Karpenter NodePool manifests
+
+### Runbook Engine (`src/devctl/runbooks/`)
+- Executable runbooks in YAML or Markdown format
+- Jinja2 templating for variable substitution
+- Step types: command, script, prompt, wait, manual, notify, conditional
+- Audit logging for all executions
+- Integration with Confluence for publishing
+
+### Deployment Orchestration (`src/devctl/deploy/`)
+- Multiple deployment strategies: Rolling, Blue/Green, Canary
+- State tracking and persistence
+- Promotion and rollback capabilities
+- Integration with Kubernetes
+
+### Log Aggregation (`src/devctl/core/logs/`)
+- Unified log access across CloudWatch, Grafana Loki, and EKS
+- Factory pattern for log sources
+- Search and tail capabilities
+- Insights queries support for CloudWatch
+
+### Compliance (`src/devctl/commands/compliance/`)
+- PCI DSS v4.0 control scanning
+- IAM access reviews for inactive users
+- Multiple report formats (JSON, CSV, HTML)
+- Automated remediation recommendations
 
 ## Code Patterns
 
@@ -213,9 +239,20 @@ docs/
 ├── getting-started.md       # Installation, first commands
 ├── configuration.md         # Profiles, credentials, env vars
 ├── aws-commands.md          # Full AWS command reference
+├── kubernetes.md            # Pod, deployment, node operations
+├── pagerduty.md             # Incident management, on-call
+├── argocd.md                # GitOps application management
+├── logs.md                  # Unified log search
+├── runbooks.md              # Executable runbook automation
+├── deployments.md           # Blue/Green, Canary strategies
+├── slack.md                 # Messaging, notifications
+├── confluence.md            # Documentation, incident pages
+├── compliance.md            # PCI DSS scanning
 ├── predictive-scaling.md    # Forecast + Karpenter guide
 ├── workflows.md             # Workflow engine docs
-└── bedrock-ai.md            # Bedrock agents, batch, compare
+├── bedrock-ai.md            # Bedrock agents, batch, compare
+├── jira.md                  # Issues, boards, sprints
+└── docker.md                # Container usage
 ```
 
 ## Common Tasks for Future Development
@@ -259,6 +296,11 @@ docs/
 - `DEVCTL_JIRA_URL`, `JIRA_URL`
 - `DEVCTL_JIRA_EMAIL`, `JIRA_EMAIL`
 - `DEVCTL_JIRA_API_TOKEN`, `JIRA_API_TOKEN`
+- `KUBECONFIG`, `DEVCTL_K8S_CONTEXT`, `DEVCTL_K8S_NAMESPACE`
+- `DEVCTL_PAGERDUTY_API_KEY`, `DEVCTL_PAGERDUTY_EMAIL`
+- `DEVCTL_ARGOCD_URL`, `DEVCTL_ARGOCD_TOKEN`
+- `DEVCTL_SLACK_TOKEN`, `DEVCTL_SLACK_DEFAULT_CHANNEL`
+- `DEVCTL_CONFLUENCE_URL`, `DEVCTL_CONFLUENCE_EMAIL`, `DEVCTL_CONFLUENCE_API_TOKEN`
 
 ### Config File Locations
 1. `~/.devctl/config.yaml` - User defaults
@@ -275,6 +317,8 @@ Core:
 - httpx>=0.27.0 - HTTP client
 - pydantic>=2.0.0 - Config validation
 - jinja2>=3.1.0 - Template rendering
+- kubernetes>=31.0.0 - Kubernetes API client
+- markdown>=3.5.0 - Runbook markdown parsing
 
 Dev:
 - pytest>=8.0.0 - Testing
@@ -293,6 +337,15 @@ Custom exceptions in `src/devctl/core/exceptions.py`:
 - `GitHubError` - GitHub API errors
 - `JiraError` - Jira API errors
 - `WorkflowError` - Workflow execution errors
+- `K8sError` - Kubernetes API errors
+- `PagerDutyError` - PagerDuty API errors
+- `ArgoCDError` - ArgoCD API errors
+- `SlackError` - Slack API errors
+- `ConfluenceError` - Confluence API errors
+- `LogsError` - Log source errors
+- `RunbookError` - Runbook execution errors
+- `DeploymentError` - Deployment orchestration errors
+- `ComplianceError` - Compliance scanning errors
 
 ## Next Steps / TODO
 
@@ -355,6 +408,15 @@ devctl-py/
 │   ├── getting-started.md
 │   ├── configuration.md
 │   ├── aws-commands.md
+│   ├── kubernetes.md       # K8s operations
+│   ├── pagerduty.md        # Incident management
+│   ├── argocd.md           # GitOps
+│   ├── logs.md             # Unified logs
+│   ├── runbooks.md         # Runbook automation
+│   ├── deployments.md      # Deployment strategies
+│   ├── slack.md            # Messaging
+│   ├── confluence.md       # Documentation
+│   ├── compliance.md       # PCI DSS
 │   ├── predictive-scaling.md
 │   ├── workflows.md
 │   ├── bedrock-ai.md
@@ -366,15 +428,51 @@ devctl-py/
 │   ├── cli.py              # Main CLI
 │   ├── config.py           # Config management
 │   ├── core/               # Shared utilities
+│   │   ├── context.py      # Click context
+│   │   ├── output.py       # Output formatting
+│   │   ├── exceptions.py   # Custom exceptions
+│   │   └── logs/           # Log source abstractions
+│   │       ├── base.py     # LogSource ABC
+│   │       ├── cloudwatch.py
+│   │       ├── loki.py
+│   │       └── eks.py
 │   ├── clients/            # API clients
+│   │   ├── aws.py          # AWS client factory
+│   │   ├── grafana.py      # Grafana Cloud
+│   │   ├── github.py       # GitHub API
+│   │   ├── jira.py         # Jira Cloud
+│   │   ├── k8s.py          # Kubernetes
+│   │   ├── pagerduty.py    # PagerDuty
+│   │   ├── argocd.py       # ArgoCD
+│   │   ├── slack.py        # Slack
+│   │   └── confluence.py   # Confluence
+│   ├── runbooks/           # Runbook engine
+│   │   ├── engine.py       # Execution engine
+│   │   ├── schema.py       # Runbook models
+│   │   ├── markdown_parser.py
+│   │   └── audit.py        # Audit logging
+│   ├── deploy/             # Deployment orchestration
+│   │   ├── models.py       # Deployment models
+│   │   ├── state.py        # State persistence
+│   │   └── strategies/     # Strategy implementations
+│   │       ├── base.py
+│   │       ├── rolling.py
+│   │       ├── blue_green.py
+│   │       └── canary.py
 │   ├── commands/           # CLI commands
 │   │   ├── aws/            # AWS commands
-│   │   │   ├── forecast.py # Predictive scaling
-│   │   │   ├── bedrock.py  # AI/ML operations
-│   │   │   └── ...
 │   │   ├── grafana/        # Grafana commands
 │   │   ├── github/         # GitHub commands
 │   │   ├── jira/           # Jira Cloud commands
+│   │   ├── k8s/            # Kubernetes commands
+│   │   ├── pagerduty/      # PagerDuty commands
+│   │   ├── argocd/         # ArgoCD commands
+│   │   ├── logs/           # Unified log commands
+│   │   ├── runbooks/       # Runbook commands
+│   │   ├── deploy/         # Deployment commands
+│   │   ├── slack/          # Slack commands
+│   │   ├── confluence/     # Confluence commands
+│   │   ├── compliance/     # PCI DSS commands
 │   │   ├── ops/            # DevOps commands
 │   │   └── workflow.py     # Workflow commands
 │   └── workflows/          # Workflow engine
@@ -386,6 +484,7 @@ devctl-py/
     ├── test_cli.py
     ├── test_config.py
     ├── test_output.py
+    ├── test_clients.py     # Client tests
     ├── test_workflows.py
     └── test_aws_integration.py
 ```

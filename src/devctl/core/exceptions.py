@@ -113,3 +113,120 @@ class TimeoutError(DevCtlError):
     ):
         super().__init__(message, details)
         self.timeout_seconds = timeout_seconds
+
+
+class K8sError(DevCtlError):
+    """Kubernetes API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.status_code = status_code
+
+
+class PagerDutyError(DevCtlError):
+    """PagerDuty API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.status_code = status_code
+
+
+class LogsError(DevCtlError):
+    """Log aggregation errors."""
+
+    def __init__(
+        self,
+        message: str,
+        source: str | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.source = source
+
+
+class ArgoCDError(DevCtlError):
+    """ArgoCD API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.status_code = status_code
+
+
+class DeploymentError(DevCtlError):
+    """Deployment orchestration errors."""
+
+    def __init__(
+        self,
+        message: str,
+        deployment_id: str | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.deployment_id = deployment_id
+
+
+class RunbookError(DevCtlError):
+    """Runbook execution errors."""
+
+    def __init__(
+        self,
+        message: str,
+        step: str | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.step = step
+
+
+class SlackError(DevCtlError):
+    """Slack API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.error_code = error_code
+
+
+class ConfluenceError(DevCtlError):
+    """Confluence API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.status_code = status_code
+
+
+class ComplianceError(DevCtlError):
+    """Compliance check errors."""
+
+    def __init__(
+        self,
+        message: str,
+        control_id: str | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details)
+        self.control_id = control_id

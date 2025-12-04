@@ -171,6 +171,15 @@ def register_commands() -> None:
     from devctl.commands.jira import jira
     from devctl.commands.ops import ops
     from devctl.commands import workflow
+    from devctl.commands.k8s import k8s
+    from devctl.commands.pagerduty import pagerduty
+    from devctl.commands.argocd import argocd
+    from devctl.commands.logs import logs
+    from devctl.commands.runbooks import runbook
+    from devctl.commands.deploy import deploy
+    from devctl.commands.slack import slack
+    from devctl.commands.confluence import confluence
+    from devctl.commands.compliance import compliance
 
     cli.add_command(aws)
     cli.add_command(grafana)
@@ -178,6 +187,15 @@ def register_commands() -> None:
     cli.add_command(jira)
     cli.add_command(ops)
     cli.add_command(workflow.workflow)
+    cli.add_command(k8s)
+    cli.add_command(pagerduty)
+    cli.add_command(argocd)
+    cli.add_command(logs)
+    cli.add_command(runbook)
+    cli.add_command(deploy)
+    cli.add_command(slack)
+    cli.add_command(confluence)
+    cli.add_command(compliance)
 
 
 # Register commands

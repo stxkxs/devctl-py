@@ -8,7 +8,22 @@ import pytest
 from click.testing import CliRunner
 
 from devctl.cli import cli
-from devctl.config import DevCtlConfig, ProfileConfig, AWSConfig, GrafanaConfig, GitHubConfig
+from devctl.config import (
+    DevCtlConfig,
+    ProfileConfig,
+    AWSConfig,
+    GrafanaConfig,
+    GitHubConfig,
+    JiraConfig,
+    K8sConfig,
+    PagerDutyConfig,
+    ArgoCDConfig,
+    SlackConfig,
+    ConfluenceConfig,
+    LogsConfig,
+    DeployConfig,
+    ComplianceConfig,
+)
 from devctl.core.context import DevCtlContext
 from devctl.core.output import OutputFormat
 
@@ -28,6 +43,15 @@ def mock_config() -> DevCtlConfig:
                 aws=AWSConfig(profile="test", region="us-east-1"),
                 grafana=GrafanaConfig(url="https://test.grafana.net"),
                 github=GitHubConfig(org="test-org"),
+                jira=JiraConfig(url="https://test.atlassian.net"),
+                k8s=K8sConfig(namespace="default"),
+                pagerduty=PagerDutyConfig(api_key="test-key"),
+                argocd=ArgoCDConfig(url="https://argocd.test.com"),
+                slack=SlackConfig(token="xoxb-test"),
+                confluence=ConfluenceConfig(url="https://test.atlassian.net/wiki"),
+                logs=LogsConfig(),
+                deploy=DeployConfig(),
+                compliance=ComplianceConfig(),
             )
         }
     )
@@ -70,6 +94,55 @@ def mock_github_client() -> Generator[MagicMock, None, None]:
         yield mock_client.return_value
 
 
+@pytest.fixture
+def mock_k8s_client() -> Generator[MagicMock, None, None]:
+    """Mock Kubernetes client."""
+    with patch("kubernetes.client.CoreV1Api") as mock_core, \
+         patch("kubernetes.client.AppsV1Api") as mock_apps, \
+         patch("kubernetes.config.load_kube_config"):
+        mock_core_instance = MagicMock()
+        mock_apps_instance = MagicMock()
+        mock_core.return_value = mock_core_instance
+        mock_apps.return_value = mock_apps_instance
+        yield {"core": mock_core_instance, "apps": mock_apps_instance}
+
+
+@pytest.fixture
+def mock_pagerduty_client() -> Generator[MagicMock, None, None]:
+    """Mock PagerDuty HTTP client."""
+    with patch("httpx.Client") as mock_client:
+        mock_instance = MagicMock()
+        mock_client.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
+def mock_argocd_client() -> Generator[MagicMock, None, None]:
+    """Mock ArgoCD HTTP client."""
+    with patch("httpx.Client") as mock_client:
+        mock_instance = MagicMock()
+        mock_client.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
+def mock_slack_client() -> Generator[MagicMock, None, None]:
+    """Mock Slack HTTP client."""
+    with patch("httpx.Client") as mock_client:
+        mock_instance = MagicMock()
+        mock_client.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
+def mock_confluence_client() -> Generator[MagicMock, None, None]:
+    """Mock Confluence HTTP client."""
+    with patch("httpx.Client") as mock_client:
+        mock_instance = MagicMock()
+        mock_client.return_value = mock_instance
+        yield mock_instance
+
+
 @pytest.fixture(autouse=True)
 def clean_env() -> Generator[None, None, None]:
     """Clean environment variables before each test."""
@@ -78,10 +151,16 @@ def clean_env() -> Generator[None, None, None]:
         "DEVCTL_AWS_REGION",
         "DEVCTL_GRAFANA_API_KEY",
         "DEVCTL_GITHUB_TOKEN",
+        "DEVCTL_JIRA_API_TOKEN",
+        "DEVCTL_PAGERDUTY_API_KEY",
+        "DEVCTL_ARGOCD_TOKEN",
+        "DEVCTL_SLACK_TOKEN",
+        "DEVCTL_CONFLUENCE_API_TOKEN",
         "AWS_PROFILE",
         "AWS_REGION",
         "GRAFANA_API_KEY",
         "GITHUB_TOKEN",
+        "KUBECONFIG",
     ]
 
     original = {k: os.environ.get(k) for k in env_vars}

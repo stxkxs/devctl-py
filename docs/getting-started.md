@@ -8,6 +8,8 @@ This guide walks through installing devctl, configuring credentials, and running
 - AWS CLI configured (`aws configure`) or environment credentials
 - Grafana Cloud API key (for Grafana commands)
 - GitHub personal access token (for GitHub commands)
+- Kubernetes cluster access (for k8s commands)
+- API tokens for optional integrations (PagerDuty, ArgoCD, Slack, Confluence)
 
 ## Installation
 
@@ -87,6 +89,13 @@ export DEVCTL_GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxx
 # AWS (if not using ~/.aws/credentials)
 export AWS_ACCESS_KEY_ID=AKIA...
 export AWS_SECRET_ACCESS_KEY=...
+
+# Optional integrations
+export DEVCTL_JIRA_API_TOKEN=xxxxxxxxxxxx
+export DEVCTL_PAGERDUTY_API_KEY=u+xxxxxxxxxxxxxxxx
+export DEVCTL_ARGOCD_TOKEN=eyJhbGci...
+export DEVCTL_SLACK_TOKEN=xoxb-xxxxxxxxxxxx
+export DEVCTL_CONFLUENCE_API_TOKEN=xxxxxxxxxxxx
 ```
 
 ## First Commands
@@ -206,6 +215,45 @@ devctl grafana datasources health
 devctl grafana annotations create "Deployed v1.2.3" --tags deployment
 ```
 
+### Kubernetes operations
+
+```bash
+# List pods
+devctl k8s pods list -n default
+
+# View pod logs
+devctl k8s pods logs my-pod --tail 50
+
+# Check deployments
+devctl k8s deployments list
+```
+
+### Incident response
+
+```bash
+# Check PagerDuty incidents
+devctl pagerduty incidents list
+
+# Check who's on-call
+devctl pagerduty oncall
+
+# Send Slack notification
+devctl slack send "#devops" "Deployment completed"
+```
+
+### ArgoCD operations
+
+```bash
+# List applications
+devctl argocd apps list
+
+# Check application status
+devctl argocd apps status my-app
+
+# Sync application
+devctl argocd apps sync my-app
+```
+
 ## Troubleshooting
 
 ### AWS credential errors
@@ -245,5 +293,14 @@ devctl aws iam whoami
 
 - [Configuration Guide](configuration.md) - Profiles, credentials, advanced config
 - [AWS Commands](aws-commands.md) - Full AWS command reference
+- [Kubernetes](kubernetes.md) - Pod, deployment, and cluster operations
+- [PagerDuty](pagerduty.md) - Incident management and on-call
+- [ArgoCD](argocd.md) - GitOps application management
+- [Logs](logs.md) - Unified log search and streaming
+- [Runbooks](runbooks.md) - Executable runbook automation
+- [Deployments](deployments.md) - Blue/Green, Canary, Rolling strategies
+- [Slack](slack.md) - Messaging and notifications
+- [Confluence](confluence.md) - Documentation and incident pages
+- [Compliance](compliance.md) - PCI DSS scanning and access reviews
 - [Workflows](workflows.md) - Automate multi-step operations
 - [Predictive Scaling](predictive-scaling.md) - ML-powered auto-scaling

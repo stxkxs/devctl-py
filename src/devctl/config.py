@@ -120,13 +120,257 @@ class JiraConfig(BaseModel):
         return token
 
 
+class K8sConfig(BaseModel):
+    """Kubernetes configuration."""
+
+    kubeconfig: str | None = None
+    context: str | None = None
+    namespace: str = "default"
+    timeout: int = 30
+
+    def get_kubeconfig(self) -> str | None:
+        """Get kubeconfig path from config or environment."""
+        return (
+            os.environ.get("DEVCTL_KUBECONFIG")
+            or os.environ.get("KUBECONFIG")
+            or self.kubeconfig
+        )
+
+    def get_context(self) -> str | None:
+        """Get k8s context from config or environment."""
+        return (
+            os.environ.get("DEVCTL_K8S_CONTEXT")
+            or os.environ.get("K8S_CONTEXT")
+            or self.context
+        )
+
+    def get_namespace(self) -> str:
+        """Get default namespace from config or environment."""
+        return (
+            os.environ.get("DEVCTL_K8S_NAMESPACE")
+            or os.environ.get("K8S_NAMESPACE")
+            or self.namespace
+        )
+
+
+class PagerDutyConfig(BaseModel):
+    """PagerDuty configuration."""
+
+    api_key: str | None = None
+    service_id: str | None = None
+    email: str | None = None
+    timeout: int = 30
+
+    def get_api_key(self) -> str | None:
+        """Get API key from config or environment."""
+        key = self.api_key
+        if key == "from_env" or key is None:
+            key = (
+                os.environ.get("DEVCTL_PAGERDUTY_API_KEY")
+                or os.environ.get("PAGERDUTY_API_KEY")
+                or os.environ.get("PD_API_KEY")
+            )
+        return key
+
+    def get_service_id(self) -> str | None:
+        """Get default service ID."""
+        return (
+            os.environ.get("DEVCTL_PAGERDUTY_SERVICE_ID")
+            or os.environ.get("PAGERDUTY_SERVICE_ID")
+            or self.service_id
+        )
+
+    def get_email(self) -> str | None:
+        """Get user email for API requests."""
+        return (
+            os.environ.get("DEVCTL_PAGERDUTY_EMAIL")
+            or os.environ.get("PAGERDUTY_EMAIL")
+            or self.email
+        )
+
+
+class LogsConfig(BaseModel):
+    """Unified logs configuration."""
+
+    default_source: str = "cloudwatch"  # cloudwatch, loki, eks
+    default_time_range: str = "1h"
+    max_results: int = 1000
+    cloudwatch_log_group_prefix: str | None = None
+    loki_datasource_uid: str | None = None
+    eks_cluster: str | None = None
+    eks_namespace: str = "default"
+
+
+class ArgoCDConfig(BaseModel):
+    """ArgoCD configuration."""
+
+    url: str | None = None
+    token: str | None = None
+    insecure: bool = False
+    timeout: int = 30
+
+    def get_url(self) -> str | None:
+        """Get ArgoCD URL from config or environment."""
+        return (
+            os.environ.get("DEVCTL_ARGOCD_URL")
+            or os.environ.get("ARGOCD_SERVER")
+            or self.url
+        )
+
+    def get_token(self) -> str | None:
+        """Get ArgoCD token from config or environment."""
+        token = self.token
+        if token == "from_env" or token is None:
+            token = (
+                os.environ.get("DEVCTL_ARGOCD_TOKEN")
+                or os.environ.get("ARGOCD_AUTH_TOKEN")
+            )
+        return token
+
+
+class CanaryMetricConfig(BaseModel):
+    """Canary metric configuration."""
+
+    name: str
+    threshold: float
+    source: str = "prometheus"
+    query: str | None = None
+
+
+class CanaryStrategyConfig(BaseModel):
+    """Canary deployment strategy configuration."""
+
+    initial_weight: int = 10
+    increment: int = 15
+    interval: int = 300  # seconds
+    max_weight: int = 100
+    metrics: list[CanaryMetricConfig] = Field(default_factory=list)
+
+
+class BlueGreenStrategyConfig(BaseModel):
+    """Blue/Green deployment strategy configuration."""
+
+    switch_timeout: int = 300
+    rollback_window: int = 3600  # Keep blue for 1 hour
+
+
+class RollingStrategyConfig(BaseModel):
+    """Rolling deployment strategy configuration."""
+
+    max_unavailable: str = "25%"
+    max_surge: str = "25%"
+
+
+class DeployConfig(BaseModel):
+    """Deployment orchestration configuration."""
+
+    cluster: str | None = None
+    namespace: str = "default"
+    kubeconfig: str | None = None
+    canary: CanaryStrategyConfig = Field(default_factory=CanaryStrategyConfig)
+    blue_green: BlueGreenStrategyConfig = Field(default_factory=BlueGreenStrategyConfig)
+    rolling: RollingStrategyConfig = Field(default_factory=RollingStrategyConfig)
+
+    def get_cluster(self) -> str | None:
+        """Get cluster from config or environment."""
+        return os.environ.get("DEVCTL_DEPLOY_CLUSTER") or self.cluster
+
+
+class SlackConfig(BaseModel):
+    """Slack configuration."""
+
+    token: str | None = None
+    default_channel: str = "#devops"
+    username: str = "DevCtl Bot"
+    icon_emoji: str = ":robot_face:"
+    timeout: int = 30
+
+    def get_token(self) -> str | None:
+        """Get Slack bot token from config or environment."""
+        token = self.token
+        if token == "from_env" or token is None:
+            token = (
+                os.environ.get("DEVCTL_SLACK_TOKEN")
+                or os.environ.get("SLACK_BOT_TOKEN")
+                or os.environ.get("SLACK_TOKEN")
+            )
+        return token
+
+
+class ConfluenceConfig(BaseModel):
+    """Confluence Cloud configuration."""
+
+    url: str | None = None
+    email: str | None = None
+    api_token: str | None = None
+    default_space: str | None = None
+    timeout: int = 30
+
+    def get_url(self) -> str | None:
+        """Get Confluence URL from config or environment."""
+        return (
+            os.environ.get("DEVCTL_CONFLUENCE_URL")
+            or os.environ.get("CONFLUENCE_URL")
+            or self.url
+        )
+
+    def get_email(self) -> str | None:
+        """Get Confluence email from config or environment."""
+        return (
+            os.environ.get("DEVCTL_CONFLUENCE_EMAIL")
+            or os.environ.get("CONFLUENCE_EMAIL")
+            or self.email
+        )
+
+    def get_api_token(self) -> str | None:
+        """Get Confluence API token from config or environment."""
+        token = self.api_token
+        if token == "from_env" or token is None:
+            token = (
+                os.environ.get("DEVCTL_CONFLUENCE_API_TOKEN")
+                or os.environ.get("CONFLUENCE_API_TOKEN")
+            )
+        return token
+
+
+class PCIComplianceConfig(BaseModel):
+    """PCI DSS compliance configuration."""
+
+    enabled_controls: list[str] | str = "all"  # all or list of control IDs
+    exclude_resources: list[str] = Field(default_factory=list)  # ARNs to skip
+    report_bucket: str | None = None  # S3 bucket for reports
+    severity_threshold: str = "low"  # minimum severity to report
+
+
+class ComplianceNotificationConfig(BaseModel):
+    """Compliance notification configuration."""
+
+    slack_channel: str | None = None
+    email: str | None = None
+
+
+class ComplianceConfig(BaseModel):
+    """Compliance configuration."""
+
+    pci: PCIComplianceConfig = Field(default_factory=PCIComplianceConfig)
+    notifications: ComplianceNotificationConfig = Field(default_factory=ComplianceNotificationConfig)
+
+
 class ProfileConfig(BaseModel):
-    """Profile configuration grouping AWS, Grafana, GitHub, and Jira settings."""
+    """Profile configuration grouping all service settings."""
 
     aws: AWSConfig = Field(default_factory=AWSConfig)
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
     github: GitHubConfig = Field(default_factory=GitHubConfig)
     jira: JiraConfig = Field(default_factory=JiraConfig)
+    k8s: K8sConfig = Field(default_factory=K8sConfig)
+    pagerduty: PagerDutyConfig = Field(default_factory=PagerDutyConfig)
+    logs: LogsConfig = Field(default_factory=LogsConfig)
+    argocd: ArgoCDConfig = Field(default_factory=ArgoCDConfig)
+    deploy: DeployConfig = Field(default_factory=DeployConfig)
+    slack: SlackConfig = Field(default_factory=SlackConfig)
+    confluence: ConfluenceConfig = Field(default_factory=ConfluenceConfig)
+    compliance: ComplianceConfig = Field(default_factory=ComplianceConfig)
 
 
 class GlobalConfig(BaseModel):

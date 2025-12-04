@@ -61,6 +61,23 @@ profiles:
       url: https://prod.grafana.net
     github:
       org: your-org-prod
+    k8s:
+      context: prod-cluster
+      namespace: production
+    pagerduty:
+      api_key: from_env
+      service_id: PXXXXXX
+    argocd:
+      url: https://argocd.company.com
+      token: from_env
+    slack:
+      token: from_env
+      default_channel: "#prod-alerts"
+    confluence:
+      url: https://company.atlassian.net/wiki
+      email: devops@company.com
+      api_token: from_env
+      default_space: OPS
 
   staging:
     aws:
@@ -68,6 +85,9 @@ profiles:
       region: us-east-1
     grafana:
       url: https://staging.grafana.net
+    k8s:
+      context: staging-cluster
+      namespace: staging
 
 # Custom workflows (see workflows.md)
 workflows:
@@ -104,6 +124,52 @@ workflows:
 |----------|-------------|----------|
 | `DEVCTL_GITHUB_TOKEN` | Personal access token or app token | `GITHUB_TOKEN`, `GH_TOKEN` |
 | `DEVCTL_GITHUB_ORG` | Default organization | - |
+
+### Jira
+
+| Variable | Description | Fallback |
+|----------|-------------|----------|
+| `DEVCTL_JIRA_URL` | Jira instance URL | - |
+| `DEVCTL_JIRA_EMAIL` | Jira account email | - |
+| `DEVCTL_JIRA_API_TOKEN` | Jira API token | `JIRA_API_TOKEN` |
+
+### Kubernetes
+
+| Variable | Description | Fallback |
+|----------|-------------|----------|
+| `KUBECONFIG` | Path to kubeconfig file | `~/.kube/config` |
+| `DEVCTL_K8S_CONTEXT` | Kubernetes context to use | Current context |
+| `DEVCTL_K8S_NAMESPACE` | Default namespace | `default` |
+
+### PagerDuty
+
+| Variable | Description | Fallback |
+|----------|-------------|----------|
+| `DEVCTL_PAGERDUTY_API_KEY` | PagerDuty API key | - |
+| `DEVCTL_PAGERDUTY_EMAIL` | Your PagerDuty email | - |
+| `DEVCTL_PAGERDUTY_SERVICE_ID` | Default service ID | - |
+
+### ArgoCD
+
+| Variable | Description | Fallback |
+|----------|-------------|----------|
+| `DEVCTL_ARGOCD_URL` | ArgoCD server URL | - |
+| `DEVCTL_ARGOCD_TOKEN` | ArgoCD API token | - |
+
+### Slack
+
+| Variable | Description | Fallback |
+|----------|-------------|----------|
+| `DEVCTL_SLACK_TOKEN` | Slack bot token | `SLACK_TOKEN` |
+| `DEVCTL_SLACK_DEFAULT_CHANNEL` | Default channel for notifications | - |
+
+### Confluence
+
+| Variable | Description | Fallback |
+|----------|-------------|----------|
+| `DEVCTL_CONFLUENCE_URL` | Confluence instance URL | - |
+| `DEVCTL_CONFLUENCE_EMAIL` | Confluence account email | - |
+| `DEVCTL_CONFLUENCE_API_TOKEN` | Confluence API token | - |
 
 ### devctl Settings
 

@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from devctl.clients.grafana import GrafanaClient
     from devctl.clients.github import GitHubClient
     from devctl.clients.jira import JiraClient
+    from devctl.clients.k8s import K8sClient
+    from devctl.clients.pagerduty import PagerDutyClient
+    from devctl.clients.argocd import ArgoCDClient
+    from devctl.clients.slack import SlackClient
+    from devctl.clients.confluence import ConfluenceClient
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -74,6 +79,11 @@ class DevCtlContext:
         self._grafana_client: GrafanaClient | None = None
         self._github_client: GitHubClient | None = None
         self._jira_client: JiraClient | None = None
+        self._k8s_client: K8sClient | None = None
+        self._pagerduty_client: PagerDutyClient | None = None
+        self._argocd_client: ArgoCDClient | None = None
+        self._slack_client: SlackClient | None = None
+        self._confluence_client: ConfluenceClient | None = None
 
     @property
     def config(self) -> DevCtlConfig:
@@ -160,6 +170,51 @@ class DevCtlContext:
 
             self._jira_client = JiraClient(self.profile.jira)
         return self._jira_client
+
+    @property
+    def k8s(self) -> "K8sClient":
+        """Get or create Kubernetes client."""
+        if self._k8s_client is None:
+            from devctl.clients.k8s import K8sClient
+
+            self._k8s_client = K8sClient(self.profile.k8s)
+        return self._k8s_client
+
+    @property
+    def pagerduty(self) -> "PagerDutyClient":
+        """Get or create PagerDuty client."""
+        if self._pagerduty_client is None:
+            from devctl.clients.pagerduty import PagerDutyClient
+
+            self._pagerduty_client = PagerDutyClient(self.profile.pagerduty)
+        return self._pagerduty_client
+
+    @property
+    def argocd(self) -> "ArgoCDClient":
+        """Get or create ArgoCD client."""
+        if self._argocd_client is None:
+            from devctl.clients.argocd import ArgoCDClient
+
+            self._argocd_client = ArgoCDClient(self.profile.argocd)
+        return self._argocd_client
+
+    @property
+    def slack(self) -> "SlackClient":
+        """Get or create Slack client."""
+        if self._slack_client is None:
+            from devctl.clients.slack import SlackClient
+
+            self._slack_client = SlackClient(self.profile.slack)
+        return self._slack_client
+
+    @property
+    def confluence(self) -> "ConfluenceClient":
+        """Get or create Confluence client."""
+        if self._confluence_client is None:
+            from devctl.clients.confluence import ConfluenceClient
+
+            self._confluence_client = ConfluenceClient(self.profile.confluence)
+        return self._confluence_client
 
     def confirm(self, message: str, default: bool = False) -> bool:
         """Ask for user confirmation.

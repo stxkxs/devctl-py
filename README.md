@@ -1,6 +1,6 @@
 # devctl
 
-A unified CLI for AWS, Grafana, and GitHub operations. Built for DevOps engineers who work across these platforms daily.
+A unified CLI for AWS, Grafana, GitHub, Kubernetes, PagerDuty, ArgoCD, Slack, Confluence, and compliance operations. Built for DevOps engineers who work across these platforms daily.
 
 ## Installation
 
@@ -43,6 +43,15 @@ devctl github repos list
 | [Getting Started](docs/getting-started.md) | Installation, configuration, first commands |
 | [Configuration](docs/configuration.md) | Profiles, credentials, environment variables |
 | [AWS Commands](docs/aws-commands.md) | IAM, S3, ECR, EKS, Cost Explorer, CloudWatch |
+| [Kubernetes](docs/kubernetes.md) | Pod management, deployments, events, resources |
+| [PagerDuty](docs/pagerduty.md) | Incidents, on-call schedules, services |
+| [ArgoCD](docs/argocd.md) | Application sync, diff, rollback, status |
+| [Logs](docs/logs.md) | Unified log search across CloudWatch, Loki, EKS |
+| [Runbooks](docs/runbooks.md) | Executable runbooks in YAML/Markdown |
+| [Deployments](docs/deployments.md) | Blue/Green, Canary, Rolling deployment strategies |
+| [Slack](docs/slack.md) | Messages, notifications, channels |
+| [Confluence](docs/confluence.md) | Pages, search, runbook publishing |
+| [Compliance](docs/compliance.md) | PCI DSS scanning and access reviews |
 | [Predictive Scaling](docs/predictive-scaling.md) | ML-powered auto-scaling with AWS Forecast + Karpenter |
 | [Bedrock AI](docs/bedrock-ai.md) | Agents, batch inference, model comparison |
 | [Jira](docs/jira.md) | Issues, boards, sprints, JQL search |
@@ -78,6 +87,49 @@ devctl
 │   ├── issues       # Issue search, create, update, transition
 │   ├── boards       # Agile board management
 │   └── sprints      # Sprint operations
+├── k8s
+│   ├── pods         # Pod operations (list, logs, exec, delete)
+│   ├── deployments  # Deployment management and rollouts
+│   ├── nodes        # Node information
+│   └── events       # Cluster events
+├── pagerduty
+│   ├── incidents    # Incident management (ack, resolve, escalate)
+│   ├── oncall       # On-call schedules
+│   ├── schedules    # Schedule management
+│   └── services     # Service catalog
+├── argocd
+│   └── apps         # Application sync, diff, rollback, status
+├── logs
+│   ├── search       # Unified log search
+│   ├── tail         # Real-time log streaming
+│   ├── cloudwatch   # CloudWatch Logs / Insights
+│   └── eks          # EKS pod logs
+├── runbook
+│   ├── run          # Execute runbooks
+│   ├── list         # List available runbooks
+│   ├── validate     # Validate runbook syntax
+│   └── history      # Execution history
+├── deploy
+│   ├── create       # Create deployment (rolling/blue-green/canary)
+│   ├── status       # Check deployment status
+│   ├── promote      # Promote canary/blue-green
+│   ├── rollback     # Rollback deployment
+│   ├── abort        # Abort in-progress deployment
+│   └── list         # List deployments
+├── slack
+│   ├── send         # Send messages
+│   ├── notify       # Formatted notifications
+│   ├── channels     # Channel management
+│   ├── users        # User listing
+│   └── thread       # Thread replies
+├── confluence
+│   ├── pages        # Page CRUD operations
+│   ├── search       # Content search
+│   ├── runbook      # Publish runbooks
+│   └── incident     # Incident page creation
+├── compliance
+│   ├── pci          # PCI DSS scanning and reports
+│   └── access-review # IAM access reviews
 ├── ops
 │   ├── health       # Health checks
 │   └── cost-report  # Cross-service cost analysis
@@ -138,6 +190,115 @@ devctl aws cost unused-resources
 devctl aws cost rightsizing
 ```
 
+### Kubernetes operations
+
+```bash
+# List pods in namespace
+devctl k8s pods list -n production
+
+# Stream logs from a pod
+devctl k8s pods logs my-app-pod -f --tail 100
+
+# Execute command in pod
+devctl k8s pods exec my-app-pod -- /bin/sh
+
+# Check deployment status
+devctl k8s deployments describe my-app -n production
+
+# Rollback a deployment
+devctl k8s deployments rollout undo my-app
+```
+
+### Incident response
+
+```bash
+# Create PagerDuty incident
+devctl pagerduty incidents create "Database latency spike" --service db-service --urgency high
+
+# Acknowledge incident
+devctl pagerduty incidents ack INCIDENT_ID
+
+# Check who's on-call
+devctl pagerduty oncall
+
+# Create incident channel in Slack
+devctl slack channels create incident-2024-01-15
+
+# Notify team
+devctl slack notify --type incident --title "Database latency spike" --severity critical
+```
+
+### Deployment with canary
+
+```bash
+# Create canary deployment
+devctl deploy create --name my-app --image myrepo/app:v2.0.0 --strategy canary
+
+# Check deployment status
+devctl deploy status DEPLOYMENT_ID
+
+# Promote canary to full rollout
+devctl deploy promote DEPLOYMENT_ID
+
+# Or rollback if issues
+devctl deploy rollback DEPLOYMENT_ID
+```
+
+### ArgoCD sync
+
+```bash
+# List applications
+devctl argocd apps list
+
+# Check app status
+devctl argocd apps status my-app
+
+# Preview changes
+devctl argocd apps diff my-app
+
+# Sync application
+devctl argocd apps sync my-app --prune
+```
+
+### Runbook execution
+
+```bash
+# List available runbooks
+devctl runbook list
+
+# Validate runbook syntax
+devctl runbook validate ./runbooks/restart-service.yaml
+
+# Execute runbook with variables
+devctl runbook run ./runbooks/restart-service.yaml --var service=api --var env=production
+```
+
+### Unified log search
+
+```bash
+# Search across all log sources
+devctl logs search "error" --source all --since 1h
+
+# Tail CloudWatch logs
+devctl logs cloudwatch /aws/lambda/my-function --tail
+
+# Search with Insights query
+devctl logs cloudwatch /aws/ecs/my-cluster --insights "fields @timestamp, @message | filter @message like /ERROR/"
+```
+
+### PCI compliance scan
+
+```bash
+# Run full PCI scan
+devctl compliance pci scan
+
+# Generate HTML report
+devctl compliance pci report --format html --output pci-report.html
+
+# Run access review
+devctl compliance access-review --days 90
+```
+
 ### Predictive scaling setup
 
 ```bash
@@ -195,10 +356,18 @@ profiles:
 ### Environment variables
 
 ```bash
+# Core services
 export DEVCTL_AWS_PROFILE=default
 export DEVCTL_AWS_REGION=us-east-1
 export DEVCTL_GRAFANA_API_KEY=glsa_xxxx
 export DEVCTL_GITHUB_TOKEN=ghp_xxxx
+export DEVCTL_JIRA_API_TOKEN=xxxx
+
+# New integrations
+export DEVCTL_PAGERDUTY_API_KEY=xxxx
+export DEVCTL_ARGOCD_TOKEN=xxxx
+export DEVCTL_SLACK_TOKEN=xoxb-xxxx
+export DEVCTL_CONFLUENCE_API_TOKEN=xxxx
 ```
 
 ## Built-in Workflow Templates
@@ -244,11 +413,13 @@ ruff format src/
 |---------|---------|
 | [click](https://click.palletsprojects.com/) | CLI framework |
 | [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) | AWS SDK |
-| [httpx](https://www.python-httpx.org/) | HTTP client for Grafana/GitHub APIs |
+| [httpx](https://www.python-httpx.org/) | HTTP client for Grafana/GitHub/PagerDuty/ArgoCD/Slack/Confluence APIs |
 | [rich](https://rich.readthedocs.io/) | Terminal formatting |
 | [pydantic](https://docs.pydantic.dev/) | Configuration validation |
-| [jinja2](https://jinja.palletsprojects.com/) | Workflow templating |
+| [jinja2](https://jinja.palletsprojects.com/) | Workflow and runbook templating |
 | [pyyaml](https://pyyaml.org/) | YAML parsing |
+| [kubernetes](https://github.com/kubernetes-client/python) | Kubernetes API client |
+| [markdown](https://python-markdown.github.io/) | Runbook markdown parsing |
 
 ## License
 
