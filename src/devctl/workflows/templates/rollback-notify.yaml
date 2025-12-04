@@ -1,0 +1,105 @@
+# Rollback with Notifications Workflow
+#
+# Simple rollback workflow with full notification chain:
+# - Execute deployment rollback
+# - Create incident Jira ticket
+# - Send Slack alert
+# - Create Grafana annotation
+#
+# Usage:
+#   devctl workflow run rollback-notify.yaml \
+#     --var app_name=api-service \
+#     --var reason="High error rate after deploy"
+
+name: rollback-notify
+description: Rollback deployment with Jira ticket creation and team notifications
+
+vars:
+  # Required variables
+  app_name: ""
+  reason: ""
+
+  # Optional variables with defaults
+  namespace: "default"
+  jira_project: "OPS"
+  slack_channel: "#deployments"
+  rollback_revision: ""
+
+steps:
+  - name: Notify Slack rollback starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rewind: *Rollback Starting*
+
+        *App:* {{ app_name }}
+        *Reason:* {{ reason }}
+
+        Initiating rollback...
+    on_failure: continue
+
+  - name: Get current deployment status
+    command: kubernetes deployments get
+    params:
+      name: "{{ app_name }}"
+      namespace: "{{ namespace }}"
+    on_failure: continue
+
+  - name: Execute rollback
+    command: "!kubectl rollout undo deployment/{{ app_name }} -n {{ namespace }} {{ '--to-revision=' + rollback_revision if rollback_revision else '' }}"
+    on_failure: fail
+
+  - name: Wait for rollback completion
+    command: "!kubectl rollout status deployment/{{ app_name }} -n {{ namespace }} --timeout=300s"
+    on_failure: fail
+    timeout: 330
+
+  - name: Verify pods after rollback
+    command: kubernetes pods list
+    params:
+      namespace: "{{ namespace }}"
+      selector: "app={{ app_name }}"
+    on_failure: continue
+
+  - name: Create Jira incident ticket
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Bug"
+      summary: "[Rollback] {{ app_name }} - {{ reason }}"
+      description: |
+        A rollback was performed for {{ app_name }}.
+
+        *Reason:* {{ reason }}
+        *Time:* {{ '%Y-%m-%d %H:%M:%S UTC' | strftime }}
+        *Namespace:* {{ namespace }}
+
+        h3. Action Required
+        - Investigate root cause
+        - Fix the issue before redeploying
+        - Update this ticket with findings
+      priority: "High"
+      labels: "rollback,{{ app_name }}"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "ROLLBACK: {{ app_name }} - {{ reason }}"
+      tags: "rollback,{{ app_name }},incident"
+    on_failure: continue
+
+  - name: Notify Slack rollback complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Rollback Complete*
+
+        *App:* {{ app_name }}
+        *Reason:* {{ reason }}
+        *Jira:* {{ results['Create Jira incident ticket'].stdout | default('Ticket created') | trim }}
+
+        Please investigate the root cause before redeploying.
+    on_failure: continue

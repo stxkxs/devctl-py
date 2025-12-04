@@ -495,3 +495,93 @@ class TestBuiltinWorkflowTemplates:
             workflow = validate_workflow(workflow_dict)
             assert workflow.name == "jira-deployment-ticket"
             assert "environment" in workflow.vars
+
+    def test_incident_response_template_valid(self):
+        template_path = self.get_templates_path() / "incident-response.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "incident-response"
+            assert "title" in workflow.vars
+            assert "severity" in workflow.vars
+            assert "service" in workflow.vars
+            assert len(workflow.steps) >= 5
+
+    def test_deploy_with_jira_template_valid(self):
+        template_path = self.get_templates_path() / "deploy-with-jira.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "deploy-with-jira"
+            assert "app_name" in workflow.vars
+            assert "jira_ticket" in workflow.vars
+            assert len(workflow.steps) >= 8
+
+    def test_daily_ops_report_template_valid(self):
+        template_path = self.get_templates_path() / "daily-ops-report.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "daily-ops-report"
+            assert "slack_channel" in workflow.vars
+            assert len(workflow.steps) >= 6
+
+    def test_pr_to_deploy_template_valid(self):
+        template_path = self.get_templates_path() / "pr-to-deploy.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "pr-to-deploy"
+            assert "pr_number" in workflow.vars
+            assert "repo" in workflow.vars
+            assert "argocd_app" in workflow.vars
+            assert len(workflow.steps) >= 10
+
+    def test_rollback_notify_template_valid(self):
+        template_path = self.get_templates_path() / "rollback-notify.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "rollback-notify"
+            assert "app_name" in workflow.vars
+            assert "reason" in workflow.vars
+            assert len(workflow.steps) >= 6
+
+    def test_weekly_cost_review_template_valid(self):
+        template_path = self.get_templates_path() / "weekly-cost-review.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "weekly-cost-review"
+            assert "slack_channel" in workflow.vars
+            assert "savings_threshold" in workflow.vars
+            assert len(workflow.steps) >= 10
+
+    def test_oncall_handoff_template_valid(self):
+        template_path = self.get_templates_path() / "oncall-handoff.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "oncall-handoff"
+            assert "shift_hours" in workflow.vars
+            assert "slack_channel" in workflow.vars
+            assert len(workflow.steps) >= 8
+
+    def test_access_review_quarterly_template_valid(self):
+        template_path = self.get_templates_path() / "access-review-quarterly.yaml"
+        if template_path.exists():
+            with open(template_path) as f:
+                workflow_dict = yaml.safe_load(f)
+            workflow = validate_workflow(workflow_dict)
+            assert workflow.name == "access-review-quarterly"
+            assert "inactive_days" in workflow.vars
+            assert "jira_project" in workflow.vars
+            assert "confluence_space" in workflow.vars
+            assert len(workflow.steps) >= 10

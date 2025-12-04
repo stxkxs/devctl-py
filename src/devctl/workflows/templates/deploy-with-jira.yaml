@@ -1,0 +1,127 @@
+# Deploy with Jira Tracking Workflow
+#
+# Full deployment with integrated tracking:
+# - Validate deployment prerequisites
+# - Sync ArgoCD application
+# - Wait for rollout completion
+# - Transition Jira ticket to Done
+# - Create Grafana annotation
+# - Send Slack notification
+#
+# Usage:
+#   devctl workflow run deploy-with-jira.yaml \
+#     --var app_name=api-service \
+#     --var version=v1.2.3 \
+#     --var jira_ticket=DEPLOY-123 \
+#     --var environment=production
+
+name: deploy-with-jira
+description: Deploy application with Jira ticket tracking, Grafana annotations, and Slack notifications
+
+vars:
+  # Required variables
+  app_name: ""
+  version: ""
+  jira_ticket: ""
+  environment: "staging"
+
+  # Optional variables with defaults
+  slack_channel: "#deployments"
+  argocd_app: ""
+  namespace: "default"
+  wait_timeout: 300
+  jira_done_status: "Done"
+
+steps:
+  - name: Update Jira ticket to In Progress
+    command: jira issues transition
+    params:
+      issue: "{{ jira_ticket }}"
+      status: "In Progress"
+    on_failure: continue
+
+  - name: Add deployment start comment to Jira
+    command: jira issues comment
+    params:
+      issue: "{{ jira_ticket }}"
+      body: |
+        Deployment started by devctl workflow
+
+        * Application: {{ app_name }}
+        * Version: {{ version }}
+        * Environment: {{ environment }}
+        * Time: {{ '%Y-%m-%d %H:%M:%S UTC' | strftime }}
+    on_failure: continue
+
+  - name: Notify Slack deployment starting
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rocket: *Deployment Starting*
+
+        *App:* {{ app_name }}
+        *Version:* {{ version }}
+        *Environment:* {{ environment }}
+        *Ticket:* {{ jira_ticket }}
+    on_failure: continue
+
+  - name: Sync ArgoCD application
+    command: argocd apps sync
+    params:
+      app: "{{ argocd_app | default(app_name) }}"
+      revision: "{{ version }}"
+    on_failure: fail
+    timeout: 300
+
+  - name: Wait for rollout completion
+    command: "!kubectl rollout status deployment/{{ app_name }} -n {{ namespace }} --timeout={{ wait_timeout }}s"
+    on_failure: fail
+    timeout: 330
+
+  - name: Verify deployment health
+    command: kubernetes pods list
+    params:
+      namespace: "{{ namespace }}"
+      selector: "app={{ app_name }}"
+    on_failure: continue
+
+  - name: Create Grafana deployment annotation
+    command: grafana annotations create
+    params:
+      text: "Deployed {{ app_name }} {{ version }} to {{ environment }}"
+      tags: "deployment,{{ app_name }},{{ environment }},{{ version }}"
+    on_failure: continue
+
+  - name: Transition Jira ticket to Done
+    command: jira issues transition
+    params:
+      issue: "{{ jira_ticket }}"
+      status: "{{ jira_done_status }}"
+    on_failure: continue
+
+  - name: Add deployment complete comment to Jira
+    command: jira issues comment
+    params:
+      issue: "{{ jira_ticket }}"
+      body: |
+        :white_check_mark: Deployment completed successfully
+
+        * Application: {{ app_name }}
+        * Version: {{ version }}
+        * Environment: {{ environment }}
+        * Completed: {{ '%Y-%m-%d %H:%M:%S UTC' | strftime }}
+    on_failure: continue
+
+  - name: Notify Slack deployment complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *Deployment Complete*
+
+        *App:* {{ app_name }}
+        *Version:* {{ version }}
+        *Environment:* {{ environment }}
+        *Ticket:* {{ jira_ticket }} (Done)
+    on_failure: continue

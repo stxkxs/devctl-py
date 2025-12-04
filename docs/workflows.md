@@ -332,6 +332,20 @@ devctl workflow show deploy-service
 | `predictive-scaling` | Full ML pipeline for predictive auto-scaling |
 | `update-predictive-scaling` | Refresh scaling from existing forecast |
 | `predictive-scaling-pipeline` | Continuous daily pipeline |
+| `jira-standup` | Generate daily standup report from Jira |
+| `jira-sprint-report` | Sprint status and progress report |
+| `jira-sprint-cleanup` | Identify issues needing attention before sprint ends |
+| `jira-release-notes` | Generate release notes from Jira issues |
+| `jira-bug-triage` | Bug triage workflow with prioritization |
+| `jira-deployment-ticket` | Create deployment tracking ticket |
+| `incident-response` | Full incident lifecycle (PagerDuty, Slack, Confluence) |
+| `deploy-with-jira` | Deploy with Jira tracking and notifications |
+| `daily-ops-report` | Morning ops report (costs, incidents, alerts) |
+| `pr-to-deploy` | GitOps pipeline from PR merge to production |
+| `rollback-notify` | Rollback with Jira ticket and notifications |
+| `weekly-cost-review` | Cost analysis with optimization recommendations |
+| `oncall-handoff` | On-call shift handoff report |
+| `access-review-quarterly` | Quarterly IAM access review for compliance |
 
 ```bash
 # List templates

@@ -1,0 +1,150 @@
+# PR to Deploy Workflow
+#
+# Full GitOps pipeline from PR merge to production:
+# - Merge approved PR
+# - Wait for CI build to complete
+# - Sync ArgoCD application
+# - Wait for rollout
+# - Verify health
+# - Create Grafana annotation
+# - Notify Slack
+#
+# Usage:
+#   devctl workflow run pr-to-deploy.yaml \
+#     --var pr_number=123 \
+#     --var repo=myorg/myapp \
+#     --var argocd_app=myapp-prod
+
+name: pr-to-deploy
+description: Full PR-to-production GitOps pipeline with health verification
+
+vars:
+  # Required variables
+  pr_number: ""
+  repo: ""
+  argocd_app: ""
+
+  # Optional variables with defaults
+  slack_channel: "#deployments"
+  ci_timeout: 600
+  deploy_timeout: 300
+  namespace: "default"
+  health_check_url: ""
+
+steps:
+  - name: Get PR details
+    command: github prs get
+    params:
+      repo: "{{ repo }}"
+      number: "{{ pr_number }}"
+    on_failure: fail
+
+  - name: Check PR is approved
+    command: github prs reviews
+    params:
+      repo: "{{ repo }}"
+      number: "{{ pr_number }}"
+    on_failure: continue
+
+  - name: Merge PR
+    command: github prs merge
+    params:
+      repo: "{{ repo }}"
+      number: "{{ pr_number }}"
+      method: "squash"
+    on_failure: fail
+
+  - name: Notify Slack PR merged
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :merged: *PR #{{ pr_number }} Merged*
+
+        *Repo:* {{ repo }}
+        Waiting for CI build...
+    on_failure: continue
+
+  - name: Wait for CI workflow to start
+    command: "!sleep 10"
+    on_failure: continue
+
+  - name: Wait for CI build to complete
+    command: github actions wait
+    params:
+      repo: "{{ repo }}"
+      branch: "main"
+      timeout: "{{ ci_timeout }}"
+    on_failure: fail
+    timeout: 660
+
+  - name: Get latest commit SHA
+    command: "!gh api repos/{{ repo }}/commits/main --jq '.sha[:7]'"
+    on_failure: continue
+
+  - name: Notify Slack CI passed
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :white_check_mark: *CI Build Passed*
+
+        Starting ArgoCD sync for {{ argocd_app }}...
+    on_failure: continue
+
+  - name: Sync ArgoCD application
+    command: argocd apps sync
+    params:
+      app: "{{ argocd_app }}"
+    on_failure: fail
+    timeout: 300
+
+  - name: Wait for ArgoCD sync completion
+    command: argocd apps wait
+    params:
+      app: "{{ argocd_app }}"
+      timeout: "{{ deploy_timeout }}"
+    on_failure: fail
+    timeout: 330
+
+  - name: Get ArgoCD app status
+    command: argocd apps status
+    params:
+      app: "{{ argocd_app }}"
+    on_failure: continue
+
+  - name: Verify pods are healthy
+    command: kubernetes pods list
+    params:
+      namespace: "{{ namespace }}"
+      selector: "app={{ argocd_app }}"
+    on_failure: continue
+
+  - name: Health check endpoint
+    condition: "{{ health_check_url != '' }}"
+    command: "!curl -sf {{ health_check_url }} || echo 'Health check failed'"
+    on_failure: continue
+    timeout: 30
+
+  - name: Create Grafana deployment annotation
+    command: grafana annotations create
+    params:
+      text: "Deployed PR #{{ pr_number }} to {{ argocd_app }}"
+      tags: "deployment,pr-{{ pr_number }},{{ argocd_app }}"
+    on_failure: continue
+
+  - name: Notify Slack deployment complete
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rocket: *Deployment Complete*
+
+        *PR:* #{{ pr_number }}
+        *Repo:* {{ repo }}
+        *App:* {{ argocd_app }}
+        *Status:* {{ results['Get ArgoCD app status'].stdout | default('Synced') | trim }}
+
+        ---
+        _Deployed via devctl pr-to-deploy workflow_
+    on_failure: continue

@@ -1,0 +1,141 @@
+# On-Call Handoff Workflow
+#
+# End-of-shift handoff automation:
+# - Get current and next on-call engineer
+# - List incidents during shift
+# - List open/unresolved issues
+# - Check pending Jira tickets
+# - Generate and post handoff summary
+#
+# Usage:
+#   devctl workflow run oncall-handoff.yaml
+#   devctl workflow run oncall-handoff.yaml --var shift_hours=8
+
+name: oncall-handoff
+description: Generate on-call shift handoff report with incidents, open issues, and pending work
+
+vars:
+  # Optional variables with defaults
+  shift_hours: 12
+  slack_channel: "#oncall"
+  jira_project: "OPS"
+  pagerduty_schedule: "primary"
+
+steps:
+  - name: Get current on-call engineer
+    command: pagerduty oncall current
+    params:
+      schedule: "{{ pagerduty_schedule }}"
+    on_failure: continue
+
+  - name: Get incidents during shift
+    command: pagerduty incidents list
+    params:
+      since: "{{ shift_hours }}h"
+      status: "all"
+    on_failure: continue
+
+  - name: Get open incidents
+    command: pagerduty incidents list
+    params:
+      status: "triggered,acknowledged"
+    on_failure: continue
+
+  - name: Get recent Grafana alerts
+    command: grafana alerts list
+    params:
+      state: "all"
+    on_failure: continue
+
+  - name: Get firing alerts
+    command: grafana alerts list
+    params:
+      state: "firing"
+    on_failure: continue
+
+  - name: Get pending Jira tickets
+    command: jira issues search
+    params:
+      jql: "project = {{ jira_project }} AND status not in (Done, Closed) AND labels = oncall ORDER BY priority DESC"
+      max: 20
+    on_failure: continue
+
+  - name: Get recent deployments
+    command: argocd apps list
+    on_failure: continue
+
+  - name: Post handoff header to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :wave: *On-Call Handoff - {{ '%Y-%m-%d %H:%M UTC' | strftime }}*
+
+        *Outgoing:* {{ results['Get current on-call engineer'].stdout | default('Unknown') | trim }}
+        *Shift Duration:* {{ shift_hours }} hours
+
+        ---
+    on_failure: continue
+
+  - name: Post incidents summary to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rotating_light: *Incidents This Shift*
+        ```
+        {{ results['Get incidents during shift'].stdout | default('No incidents during shift') | trim }}
+        ```
+
+        :warning: *Open Incidents (Needs Attention)*
+        ```
+        {{ results['Get open incidents'].stdout | default('No open incidents') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post alerts summary to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :bell: *Current Firing Alerts*
+        ```
+        {{ results['Get firing alerts'].stdout | default('No firing alerts') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post pending work to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :clipboard: *Pending On-Call Tickets*
+        ```
+        {{ results['Get pending Jira tickets'].stdout | default('No pending tickets') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post recent deployments to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :rocket: *Recent Deployments*
+        ```
+        {{ results['Get recent deployments'].stdout | default('No recent deployments') | trim }}
+        ```
+
+        ---
+
+        :point_right: *Handoff Notes:*
+        _Add any additional context in thread_
+
+        cc: incoming on-call engineer
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "On-call handoff completed"
+      tags: "oncall,handoff,shift-change"
+    on_failure: continue

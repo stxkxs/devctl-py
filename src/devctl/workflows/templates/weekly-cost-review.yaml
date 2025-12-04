@@ -1,0 +1,157 @@
+# Weekly Cost Review Workflow
+#
+# Weekly AWS cost analysis and optimization:
+# - 7-day cost breakdown by service
+# - Rightsizing recommendations
+# - Unused resources detection
+# - Post summary to Slack
+# - Create Jira tickets for significant savings
+#
+# Usage:
+#   devctl workflow run weekly-cost-review.yaml
+#   devctl workflow run weekly-cost-review.yaml --var savings_threshold=500
+
+name: weekly-cost-review
+description: Weekly AWS cost analysis with optimization recommendations and Jira ticket creation
+
+vars:
+  # Optional variables with defaults
+  slack_channel: "#finops"
+  savings_threshold: 100
+  jira_project: "OPS"
+  days: 7
+
+steps:
+  - name: Get weekly cost summary
+    command: aws cost summary
+    params:
+      days: "{{ days }}"
+    on_failure: continue
+
+  - name: Get cost breakdown by service
+    command: aws cost by-service
+    params:
+      days: "{{ days }}"
+    on_failure: continue
+
+  - name: Check for cost anomalies
+    command: aws cost anomalies
+    params:
+      days: "{{ days }}"
+    on_failure: continue
+
+  - name: Find unused resources
+    command: aws cost unused-resources
+    on_failure: continue
+
+  - name: Get rightsizing recommendations
+    command: aws cost rightsizing
+    on_failure: continue
+
+  - name: Post report header to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :chart_with_upwards_trend: *Weekly Cost Review - {{ '%Y-%m-%d' | strftime }}*
+
+        Period: Last {{ days }} days
+
+        ---
+    on_failure: continue
+
+  - name: Post cost summary to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :moneybag: *Cost Summary*
+        ```
+        {{ results['Get weekly cost summary'].stdout | default('Cost data unavailable') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post cost by service to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :bar_chart: *Cost by Service*
+        ```
+        {{ results['Get cost breakdown by service'].stdout | default('Service breakdown unavailable') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post anomalies to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :warning: *Cost Anomalies*
+        ```
+        {{ results['Check for cost anomalies'].stdout | default('No anomalies detected') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post unused resources to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :wastebasket: *Unused Resources*
+        ```
+        {{ results['Find unused resources'].stdout | default('No unused resources found') | trim }}
+        ```
+    on_failure: continue
+
+  - name: Post rightsizing recommendations to Slack
+    command: slack send
+    params:
+      channel: "{{ slack_channel }}"
+      message: |
+        :muscle: *Rightsizing Recommendations*
+        ```
+        {{ results['Get rightsizing recommendations'].stdout | default('No recommendations') | trim }}
+        ```
+
+        ---
+        _To create optimization tickets, run with --var create_tickets=true_
+    on_failure: continue
+
+  - name: Create Jira ticket for cost optimization
+    command: jira issues create
+    params:
+      project: "{{ jira_project }}"
+      type: "Task"
+      summary: "[FinOps] Weekly cost review - {{ '%Y-%m-%d' | strftime }}"
+      description: |
+        Weekly cost review for {{ '%Y-%m-%d' | strftime }}
+
+        h3. Cost Summary
+        {noformat}
+        {{ results['Get weekly cost summary'].stdout | default('See Slack') | trim }}
+        {noformat}
+
+        h3. Unused Resources
+        {noformat}
+        {{ results['Find unused resources'].stdout | default('None') | trim }}
+        {noformat}
+
+        h3. Rightsizing Recommendations
+        {noformat}
+        {{ results['Get rightsizing recommendations'].stdout | default('None') | trim }}
+        {noformat}
+
+        h3. Action Items
+        - Review unused resources and clean up
+        - Evaluate rightsizing recommendations
+        - Investigate any cost anomalies
+      labels: "finops,cost-review,weekly"
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "Weekly cost review completed"
+      tags: "cost-review,finops,weekly"
+    on_failure: continue

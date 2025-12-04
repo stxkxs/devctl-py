@@ -1,0 +1,114 @@
+# Incident Response Workflow
+#
+# Full incident lifecycle automation:
+# - Create PagerDuty incident
+# - Create dedicated Slack channel
+# - Page on-call engineer
+# - Create Confluence incident page
+# - Post incident links to Slack
+#
+# Usage:
+#   devctl workflow run incident-response.yaml \
+#     --var title="Database connection failures" \
+#     --var severity=p2 \
+#     --var service=api-gateway \
+#     --var description="Multiple services reporting DB timeouts"
+
+name: incident-response
+description: Automated incident response setup - creates PD incident, Slack channel, and Confluence page
+
+vars:
+  # Required variables
+  title: ""
+  severity: "p2"
+  service: ""
+  description: ""
+
+  # Optional variables with defaults
+  slack_prefix: "incident"
+  confluence_space: "OPS"
+  confluence_parent_id: ""
+  pagerduty_service: ""
+  notify_channel: "#incidents"
+
+steps:
+  - name: Validate inputs
+    command: "!echo 'Starting incident response for: {{ title }}'"
+    on_failure: fail
+
+  - name: Create PagerDuty incident
+    command: pagerduty incidents create
+    params:
+      title: "[{{ severity | upper }}] {{ title }}"
+      service: "{{ pagerduty_service | default(service) }}"
+      urgency: "{{ 'high' if severity in ['p1', 'p2'] else 'low' }}"
+      body: "{{ description }}"
+    on_failure: continue
+
+  - name: Get on-call engineer
+    command: pagerduty oncall current
+    params:
+      schedule: "{{ service }}"
+    on_failure: continue
+
+  - name: Create incident Slack channel
+    command: slack channels create
+    params:
+      name: "{{ slack_prefix }}-{{ '%Y%m%d' | strftime }}-{{ service | lower | replace(' ', '-') }}"
+      description: "Incident: {{ title }}"
+    on_failure: continue
+
+  - name: Post incident details to new channel
+    command: slack send
+    params:
+      channel: "{{ slack_prefix }}-{{ '%Y%m%d' | strftime }}-{{ service | lower | replace(' ', '-') }}"
+      message: |
+        :rotating_light: *Incident Started*
+
+        *Title:* {{ title }}
+        *Severity:* {{ severity | upper }}
+        *Service:* {{ service }}
+
+        *Description:*
+        {{ description }}
+
+        *On-Call:* {{ results['Get on-call engineer'].stdout | default('Unknown') | trim }}
+
+        ---
+        _This channel was auto-created by devctl incident-response workflow_
+    on_failure: continue
+
+  - name: Create Confluence incident page
+    command: confluence incident create
+    params:
+      space: "{{ confluence_space }}"
+      title: "[{{ severity | upper }}] {{ title }} - {{ '%Y-%m-%d' | strftime }}"
+      service: "{{ service }}"
+      description: "{{ description }}"
+      severity: "{{ severity }}"
+    on_failure: continue
+
+  - name: Notify main incidents channel
+    command: slack send
+    params:
+      channel: "{{ notify_channel }}"
+      message: |
+        :alert: *New Incident Created*
+
+        *{{ severity | upper }}:* {{ title }}
+        *Service:* {{ service }}
+        *Channel:* #{{ slack_prefix }}-{{ '%Y%m%d' | strftime }}-{{ service | lower | replace(' ', '-') }}
+
+        On-call has been paged.
+    on_failure: continue
+
+  - name: Create Grafana annotation
+    command: grafana annotations create
+    params:
+      text: "INCIDENT: {{ title }}"
+      tags: "incident,{{ severity }},{{ service }}"
+    on_failure: continue
+
+  - name: Summary
+    command: "!echo 'Incident response setup complete for: {{ title }}'"
+    on_failure: continue
