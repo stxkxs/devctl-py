@@ -22,7 +22,7 @@ def aws(ctx: DevCtlContext) -> None:
 
 
 # Import and register subcommands
-from devctl.commands.aws import iam, s3, ecr, eks, cost, bedrock, cloudwatch, forecast
+from devctl.commands.aws import iam, s3, ecr, eks, cost, bedrock, cloudwatch, forecast, ssm
 
 aws.add_command(iam.iam)
 aws.add_command(s3.s3)
@@ -32,3 +32,4 @@ aws.add_command(cost.cost)
 aws.add_command(bedrock.bedrock)
 aws.add_command(cloudwatch.cloudwatch)
 aws.add_command(forecast.forecast)
+aws.add_command(ssm.ssm)

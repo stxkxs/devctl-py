@@ -431,8 +431,48 @@ AWS_REGION=eu-west-1 devctl aws eks list-clusters
 devctl -p eu-profile aws eks list-clusters
 ```
 
+## SSM (Systems Manager)
+
+Parameter Store, Run Command, and Session Manager.
+
+```bash
+devctl aws ssm [COMMAND]
+```
+
+| Command | Description |
+|---------|-------------|
+| `params list` | List parameters by path |
+| `params get NAME` | Get parameter value |
+| `params set NAME` | Create/update parameter |
+| `params delete NAME` | Delete parameter |
+| `run COMMAND` | Execute command on instances |
+| `instances` | List SSM-managed instances |
+| `session INSTANCE` | Start interactive session |
+
+### Examples
+
+```bash
+# List parameters
+devctl aws ssm params list --path /app/production/
+
+# Get decrypted secret
+devctl aws ssm params get /app/api/secret --decrypt
+
+# Set SecureString parameter
+devctl aws ssm params set /app/api/key --value "secret" --type SecureString
+
+# Run command on tagged instances
+devctl aws ssm run 'uptime' --targets tag:Environment=production
+
+# List managed instances
+devctl aws ssm instances --filter online
+```
+
+See [SSM Documentation](ssm.md) for complete details.
+
 ## Related Documentation
 
+- [SSM](ssm.md) - Systems Manager operations
 - [Predictive Scaling](predictive-scaling.md) - ML-powered auto-scaling
 - [Bedrock AI](bedrock-ai.md) - AI/ML operations
 - [Workflows](workflows.md) - Automate AWS operations
