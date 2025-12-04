@@ -180,6 +180,7 @@ def register_commands() -> None:
     from devctl.commands.slack import slack
     from devctl.commands.confluence import confluence
     from devctl.commands.compliance import compliance
+    from devctl.commands.terraform import terraform
 
     cli.add_command(aws)
     cli.add_command(grafana)
@@ -196,6 +197,7 @@ def register_commands() -> None:
     cli.add_command(slack)
     cli.add_command(confluence)
     cli.add_command(compliance)
+    cli.add_command(terraform)
 
 
 # Register commands
