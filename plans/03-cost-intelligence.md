@@ -1,5 +1,12 @@
 # Cost Intelligence Features
 
+> **Status: ✅ PARTIALLY IMPLEMENTED** (December 2024)
+> - ✅ Cost Allocation & Tagging (`devctl aws tagging`, `devctl aws cost by-tag/by-team/by-project`)
+> - ✅ Budget Alerts (`devctl aws budget list/status/create/delete/forecast`)
+> - ⬜ Cross-Service Optimization (`devctl aws optimize`)
+> - ⬜ Cost Attribution Reports (`devctl ops report`)
+> - ⬜ FinOps Workflows
+
 Enhanced cost tracking, budgeting, optimization, and automation.
 
 ## 3.1 Cost Allocation & Tagging

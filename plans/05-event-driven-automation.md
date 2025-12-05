@@ -1,5 +1,11 @@
 # Event-Driven Automation
 
+> **Status: ⬜ NOT STARTED**
+>
+> **Prerequisites**: Parallel Workflows (✅ complete)
+>
+> **Dependencies to add**: `starlette`, `uvicorn`, `apscheduler`
+
 Daemon mode with webhook server for automated workflow triggers.
 
 ## Architecture Overview

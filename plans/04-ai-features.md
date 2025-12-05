@@ -1,5 +1,12 @@
 # AI-Powered Features
 
+> **Status: ✅ PARTIALLY IMPLEMENTED** (December 2024)
+> - ✅ `ai ask` - Natural language to devctl commands
+> - ✅ `ai explain-anomaly` - AI explanations for cost anomalies
+> - ✅ `ai review-iac` - Security/cost review of Terraform/K8s manifests
+> - ⬜ `ai generate-runbook` - Auto-generate runbooks from incidents
+> - ⬜ `ai incident-analyze` - Correlate logs/metrics for root cause
+
 New `devctl ai` command group leveraging existing Bedrock integration.
 
 ## Commands Overview

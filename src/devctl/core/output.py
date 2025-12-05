@@ -174,7 +174,11 @@ class OutputFormatter:
 
 
 def create_progress() -> Progress:
-    """Create a Rich progress bar."""
+    """Create a Rich progress bar.
+
+    For more advanced progress tracking, use the ProgressManager
+    from devctl.core.progress module.
+    """
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -182,6 +186,16 @@ def create_progress() -> Progress:
         TaskProgressColumn(),
         console=console,
     )
+
+
+# Re-export progress utilities for convenience
+from devctl.core.progress import (
+    ProgressManager,
+    spinner,
+    progress_bar,
+    track,
+    StepProgress,
+)
 
 
 def format_bytes(size: int) -> str:

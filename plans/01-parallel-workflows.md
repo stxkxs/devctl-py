@@ -1,5 +1,7 @@
 # Parallel Workflow Execution
 
+> **Status: ✅ IMPLEMENTED** (December 2024)
+
 Extend workflow engine with parallel step execution.
 
 ## Goal

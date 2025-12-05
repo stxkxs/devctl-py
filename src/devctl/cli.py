@@ -11,6 +11,7 @@ from devctl.config import load_config
 from devctl.core.context import DevCtlContext
 from devctl.core.output import OutputFormat
 from devctl.core.exceptions import DevCtlError, ConfigError
+from devctl.core.suggestions import install_suggestions
 
 
 CONTEXT_SETTINGS = {
@@ -181,8 +182,10 @@ def register_commands() -> None:
     from devctl.commands.confluence import confluence
     from devctl.commands.compliance import compliance
     from devctl.commands.terraform import terraform
+    from devctl.commands.ai import ai
 
     cli.add_command(aws)
+    cli.add_command(ai)
     cli.add_command(grafana)
     cli.add_command(github)
     cli.add_command(jira)
@@ -202,6 +205,9 @@ def register_commands() -> None:
 
 # Register commands
 register_commands()
+
+# Install command suggestions ("did you mean?")
+install_suggestions(cli)
 
 
 @cli.command()

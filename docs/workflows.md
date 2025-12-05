@@ -594,6 +594,92 @@ Set appropriate timeouts for long-running operations:
   timeout: 7200  # 2 hours - ML training takes time
 ```
 
+## Parallel Execution
+
+Workflows support parallel step execution in two ways:
+
+### Parallel Blocks
+
+Run multiple steps concurrently:
+
+```yaml
+steps:
+  - name: Validate
+    command: "!echo 'validating'"
+
+  - name: parallel-deploys
+    parallel:
+      name: Deploy all services
+      on_failure: fail_all  # or continue, complete_running
+      timeout: 600
+      max_concurrent: 3
+      steps:
+        - name: Deploy API
+          command: argocd apps sync
+          params: {app: api}
+        - name: Deploy Worker
+          command: argocd apps sync
+          params: {app: worker}
+        - name: Deploy Web
+          command: argocd apps sync
+          params: {app: web}
+
+  - name: Verify
+    command: k8s pods list
+```
+
+### Dependencies (DAG)
+
+Define step dependencies for automatic parallelization:
+
+```yaml
+steps:
+  - name: checkout
+    command: "!git checkout main"
+
+  - name: build-backend
+    command: "!docker build backend"
+    depends_on: [checkout]
+
+  - name: build-frontend
+    command: "!docker build frontend"
+    depends_on: [checkout]  # Runs parallel with build-backend
+
+  - name: deploy
+    command: argocd apps sync
+    depends_on: [build-backend, build-frontend]  # Waits for both
+```
+
+### Global Parallel Configuration
+
+```yaml
+name: my-workflow
+parallel:
+  max_concurrent: 10    # Maximum concurrent steps
+  rate_limit: 5.0       # Steps per second
+  fail_fast: true       # Stop on first failure
+
+steps:
+  # ...
+```
+
+### Parallel Block Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `name` | Block name for display | Auto-generated |
+| `on_failure` | `fail_all`, `continue`, or `complete_running` | `fail_all` |
+| `timeout` | Timeout in seconds for the entire block | None |
+| `max_concurrent` | Override global max_concurrent | Global setting |
+
+### Error Handling in Parallel
+
+| Mode | Behavior |
+|------|----------|
+| `fail_all` | Cancel running steps, fail immediately |
+| `continue` | Complete all steps, aggregate failures |
+| `complete_running` | Stop queuing new steps, wait for running to finish |
+
 ## Best Practices
 
 1. **Use dry-run first** - Always preview before running
@@ -602,6 +688,8 @@ Set appropriate timeouts for long-running operations:
 4. **Validate before committing** - Run `devctl workflow validate`
 5. **Use templates** - Start from built-in templates when possible
 6. **Keep workflows focused** - One workflow per concern
+7. **Use parallel blocks for independent operations** - Deploys, builds that don't depend on each other
+8. **Use depends_on for complex DAGs** - When you need fine-grained dependency control
 
 ## Related Documentation
 

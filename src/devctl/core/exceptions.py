@@ -83,6 +83,32 @@ class WorkflowError(DevCtlError):
         self.step = step
 
 
+class ParallelExecutionError(WorkflowError):
+    """Parallel execution errors."""
+
+    def __init__(
+        self,
+        message: str,
+        failed_steps: list[str] | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, details=details)
+        self.failed_steps = failed_steps or []
+
+
+class DependencyCycleError(WorkflowError):
+    """Circular dependency detected in workflow."""
+
+    def __init__(
+        self,
+        cycle: list[str],
+        details: dict[str, Any] | None = None,
+    ):
+        self.cycle = cycle
+        cycle_str = " -> ".join(cycle)
+        super().__init__(f"circular dependency detected: {cycle_str}", details=details)
+
+
 class JiraError(DevCtlError):
     """Jira API errors."""
 

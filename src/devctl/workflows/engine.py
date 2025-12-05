@@ -9,10 +9,17 @@ import yaml
 from jinja2 import Environment, BaseLoader, UndefinedError
 
 from devctl.config import WorkflowConfig, WorkflowStep
+from devctl.core.async_utils import run_sync
 from devctl.core.context import DevCtlContext
 from devctl.core.exceptions import WorkflowError
 from devctl.core.logging import get_logger
-from devctl.workflows.schema import validate_workflow, WorkflowSchema, WorkflowStepSchema
+from devctl.workflows.graph import DependencyGraph
+from devctl.workflows.schema import (
+    validate_workflow,
+    WorkflowSchema,
+    WorkflowStepSchema,
+    ParallelConfigSchema,
+)
 
 logger = get_logger(__name__)
 
@@ -76,8 +83,19 @@ class WorkflowEngine:
         if workflow.description:
             self.ctx.output.print(f"[dim]{workflow.description}[/dim]")
 
+        # check if this is a parallel workflow (uses depends_on)
+        if self._is_dag_workflow(workflow):
+            return self._run_dag(workflow, dry_run)
+
         for i, step in enumerate(workflow.steps):
-            step_result = self._execute_step(step, i + 1, len(workflow.steps), dry_run)
+            # check if this is a parallel block
+            if step.parallel is not None:
+                step_result = self._execute_parallel_block(
+                    step, i + 1, len(workflow.steps), dry_run
+                )
+            else:
+                step_result = self._execute_step(step, i + 1, len(workflow.steps), dry_run)
+
             results["steps"].append(step_result)
 
             if not step_result["success"]:
@@ -96,6 +114,58 @@ class WorkflowEngine:
             self.ctx.output.print_error(f"Workflow failed at step: {results['failed_step']}")
 
         return results
+
+    def _is_dag_workflow(self, workflow: WorkflowSchema) -> bool:
+        """Check if workflow uses dependency-based execution."""
+        return any(step.depends_on for step in workflow.steps)
+
+    def _run_dag(
+        self,
+        workflow: WorkflowSchema,
+        dry_run: bool,
+    ) -> dict[str, Any]:
+        """Execute workflow using dependency graph."""
+        from devctl.workflows.parallel import ParallelExecutor
+
+        self.ctx.output.print("[dim]Using dependency-based parallel execution[/dim]")
+
+        executor = ParallelExecutor(self, workflow.parallel)
+        step_results = run_sync(executor.execute_dag(workflow.steps, dry_run))
+
+        # convert to standard results format
+        results = {
+            "success": all(r.success or r.skipped for r in step_results.values()),
+            "steps": [r.to_dict() for r in step_results.values()],
+            "failed_step": None,
+        }
+
+        failed = [name for name, r in step_results.items() if not r.success and not r.skipped]
+        if failed:
+            results["failed_step"] = failed[0]
+            self.ctx.output.print_error(f"Workflow failed at step(s): {', '.join(failed)}")
+        else:
+            self.ctx.output.print_success("Workflow completed successfully")
+
+        return results
+
+    def _execute_parallel_block(
+        self,
+        step: WorkflowStepSchema,
+        step_num: int,
+        total_steps: int,
+        dry_run: bool,
+    ) -> dict[str, Any]:
+        """Execute a parallel block step."""
+        from devctl.workflows.parallel import ParallelExecutor
+
+        executor = ParallelExecutor(self, ParallelConfigSchema())
+        result = run_sync(
+            executor.execute_parallel_block(
+                step.parallel, step_num, total_steps, dry_run
+            )
+        )
+
+        return result.to_dict()
 
     def _execute_step(
         self,

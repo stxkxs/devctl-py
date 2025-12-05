@@ -1,5 +1,11 @@
 # Web Dashboard
 
+> **Status: ⬜ NOT STARTED**
+>
+> **Prerequisites**: Event-Driven Automation (for SSE/live updates)
+>
+> **Dependencies to add**: `fastapi`, `uvicorn[standard]`, `python-multipart`, `sse-starlette`
+
 Lightweight web UI complementing the CLI.
 
 ## Stack

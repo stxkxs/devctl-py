@@ -226,6 +226,9 @@ devctl aws cost [COMMAND]
 |---------|-------------|
 | `summary` | Overall cost summary |
 | `by-service` | Costs broken down by service |
+| `by-tag` | Costs grouped by tag value |
+| `by-team` | Costs grouped by team tag |
+| `by-project` | Costs grouped by project tag |
 | `forecast` | Cost forecast |
 | `anomalies` | Detect cost anomalies |
 | `rightsizing` | EC2 rightsizing recommendations |
@@ -240,6 +243,16 @@ devctl aws cost summary --days 30
 
 # Top 10 services by cost
 devctl aws cost by-service --top 10
+
+# Costs by tag
+devctl aws cost by-tag --tag-key team --days 30
+devctl aws cost by-tag --tag-key environment
+
+# Costs by team (shortcut for by-tag --tag-key team)
+devctl aws cost by-team --days 30
+
+# Costs by project
+devctl aws cost by-project --days 30
 
 # Cost forecast
 devctl aws cost forecast --days 30
@@ -470,9 +483,135 @@ devctl aws ssm instances --filter online
 
 See [SSM Documentation](ssm.md) for complete details.
 
+## Tagging
+
+Resource tagging audit and cost allocation.
+
+```bash
+devctl aws tagging [COMMAND]
+```
+
+| Command | Description |
+|---------|-------------|
+| `audit` | Audit resources for required tags |
+| `report` | Generate tag usage report |
+| `untagged` | Find resources with no tags |
+
+### Examples
+
+```bash
+# Audit resources for required tags
+devctl aws tagging audit --required-tags team,project,environment
+
+# Audit specific resource types
+devctl aws tagging audit -r team -r project -t ec2:instance -t rds:db
+
+# Generate tag usage report
+devctl aws tagging report
+
+# Find completely untagged resources
+devctl aws tagging untagged
+
+# Check specific resource types
+devctl aws tagging untagged -t ec2:instance -t s3:bucket
+```
+
+### Audit Output
+
+```
+Non-Compliant Resources (15 of 50)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Resource                       ┃ Type    ┃ MissingTags          ┃ TagCount  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ i-0123456789abcdef0            │ ec2     │ team, environment    │ 2         │
+│ my-database                    │ rds     │ project              │ 5         │
+│ api-logs-bucket                │ s3      │ team, project        │ 1         │
+└────────────────────────────────┴─────────┴──────────────────────┴───────────┘
+
+Tag compliance rate: 70.0%
+```
+
+## Budget
+
+Budget management and alerts.
+
+```bash
+devctl aws budget [COMMAND]
+```
+
+| Command | Description |
+|---------|-------------|
+| `list` | List all budgets |
+| `status` | Show overall budget status |
+| `create` | Create a new budget |
+| `delete` | Delete a budget |
+| `forecast` | Show budget forecast |
+
+### Examples
+
+```bash
+# List all budgets
+devctl aws budget list
+
+# Show budget status summary
+devctl aws budget status
+
+# Create monthly budget with email alerts
+devctl aws budget create \
+  --name monthly-limit \
+  --amount 10000 \
+  --period monthly \
+  --alert-threshold 80 \
+  --email finance@example.com \
+  --email ops@example.com
+
+# Create quarterly budget
+devctl aws budget create \
+  --name q1-budget \
+  --amount 50000 \
+  --period quarterly
+
+# Show budget forecast
+devctl aws budget forecast
+
+# Delete budget
+devctl aws budget delete old-budget --force
+```
+
+### Budget Status Output
+
+```
+Budget Status Summary
+━━━━━━━━━━━━━━━━━━━━━
+Total Budget: $50,000.00
+Total Spent: $35,234.56
+Overall Usage: 70.5%
+Budgets OK: 3
+Budgets Warning: 1
+Budgets Exceeded: 0
+
+Warning budgets (>80%):
+  - monthly-compute: 82.3%
+```
+
+### Budget List Output
+
+```
+AWS Budgets (4)
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┓
+┃ Name                 ┃ Type   ┃ Period   ┃ Limit       ┃ Actual      ┃ Used   ┃ Status   ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━┩
+│ monthly-limit        │ COST   │ MONTHLY  │ $10,000.00  │ $7,234.56   │ 72.3%  │ OK       │
+│ monthly-compute      │ COST   │ MONTHLY  │ $5,000.00   │ $4,115.00   │ 82.3%  │ WARNING  │
+│ quarterly-total      │ COST   │ QUARTERLY│ $50,000.00  │ $23,885.12  │ 47.8%  │ OK       │
+│ annual-savings       │ COST   │ ANNUALLY │ $100,000.00 │ $45,234.68  │ 45.2%  │ OK       │
+└──────────────────────┴────────┴──────────┴─────────────┴─────────────┴────────┴──────────┘
+```
+
 ## Related Documentation
 
 - [SSM](ssm.md) - Systems Manager operations
 - [Predictive Scaling](predictive-scaling.md) - ML-powered auto-scaling
 - [Bedrock AI](bedrock-ai.md) - AI/ML operations
+- [AI Commands](ai-commands.md) - AI-powered DevOps assistance
 - [Workflows](workflows.md) - Automate AWS operations
