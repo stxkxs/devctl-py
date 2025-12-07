@@ -20,4 +20,4 @@ metadata:
 spec:
   type: tool
   lifecycle: production
-  owner: guests
+  owner: user:default/stxkxs
