@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: devctl
+  title: devctl
+  description: A unified CLI for AWS, Grafana, GitHub, Kubernetes, PagerDuty, ArgoCD, Slack, Confluence, and compliance operations
+  annotations:
+    github.com/project-slug: stxkxs/devctl-py
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - cli
+    - python
+    - devops
+    - aws
+    - kubernetes
+  links:
+    - url: https://github.com/stxkxs/devctl-py
+      title: GitHub Repository
+      icon: github
+spec:
+  type: tool
+  lifecycle: production
+  owner: guests
