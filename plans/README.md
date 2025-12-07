@@ -4,14 +4,15 @@ This directory contains implementation plans for extending devctl-py.
 
 ## Status Overview
 
-| Plan | Status | Description |
-|------|--------|-------------|
-| [01-parallel-workflows](01-parallel-workflows.md) | ✅ Complete | Parallel step execution with DAG support |
-| [02-developer-experience](02-developer-experience.md) | 🟡 Partial | Command suggestions, progress indicators done |
-| [03-cost-intelligence](03-cost-intelligence.md) | 🟡 Partial | Tagging, budget commands done |
-| [04-ai-features](04-ai-features.md) | 🟡 Partial | ask, explain-anomaly, review-iac done |
-| [05-event-driven-automation](05-event-driven-automation.md) | ⬜ Not Started | Webhook daemon, scheduled triggers |
-| [06-web-dashboard](06-web-dashboard.md) | ⬜ Not Started | FastAPI web UI |
+| Plan                                                        | Status        | Description                                   |
+|-------------------------------------------------------------|---------------|-----------------------------------------------|
+| [01-parallel-workflows](01-parallel-workflows.md)           | ✅ Complete    | Parallel step execution with DAG support      |
+| [02-developer-experience](02-developer-experience.md)       | 🟡 Partial    | Command suggestions, progress indicators done |
+| [03-cost-intelligence](03-cost-intelligence.md)             | 🟡 Partial    | Tagging, budget commands done                 |
+| [04-ai-features](04-ai-features.md)                         | 🟡 Partial    | ask, explain-anomaly, review-iac done         |
+| [05-event-driven-automation](05-event-driven-automation.md) | ⬜ Not Started | Webhook daemon, scheduled triggers            |
+| [06-web-dashboard](06-web-dashboard.md)                     | ⬜ Not Started | FastAPI web UI                                |
+| [07-integration-testing](07-integration-testing.md)         | ⬜ Not Started | E2E AWS, contracts, benchmarks                |
 
 ## Implemented Features (December 2024)
 
@@ -88,6 +89,15 @@ Files to create:
 - `src/devctl/web/routes/`
 - `src/devctl/web/templates/`
 - `src/devctl/commands/serve.py`
+
+### Integration Testing (07)
+**New dependencies needed**: `pytest-benchmark`, `pact-python`, `pytest-xdist`, `memray`
+
+Files to create:
+- `tests/e2e/` - Real AWS E2E tests
+- `tests/contracts/` - Pact contract tests
+- `tests/benchmarks/` - Performance benchmarks
+- `src/devctl/testing/workflow_validator.py`
 
 ## Quick Start for New Session
 
