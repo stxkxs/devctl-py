@@ -1,0 +1,10 @@
+site_name: devctl ${{ values.name }} Plugin
+site_description: ${{ values.description }}
+
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - API Reference: api.md
+
+plugins:
+  - techdocs-core

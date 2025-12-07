@@ -1,0 +1,131 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: devctl-cli-plugin
+  title: devctl CLI Plugin
+  description: Create a new devctl CLI plugin/module with proper structure and testing
+  tags:
+    - python
+    - cli
+    - devops
+    - recommended
+spec:
+  owner: user:default/stxkxs
+  type: cli-plugin
+
+  parameters:
+    - title: Plugin Information
+      required:
+        - name
+        - description
+      properties:
+        name:
+          title: Plugin Name
+          type: string
+          description: Name of the CLI plugin (e.g., "datadog", "newrelic", "cloudflare")
+          pattern: "^[a-z][a-z0-9-]*$"
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Brief description of what this plugin does
+        category:
+          title: Category
+          type: string
+          description: Plugin category
+          default: integration
+          enum:
+            - aws
+            - monitoring
+            - integration
+            - compliance
+            - automation
+          enumNames:
+            - AWS Service
+            - Monitoring/Observability
+            - Third-party Integration
+            - Compliance/Security
+            - Automation/Workflow
+
+    - title: Plugin Features
+      properties:
+        hasApi:
+          title: API Integration
+          type: boolean
+          description: Does this plugin integrate with an external API?
+          default: true
+        hasAuth:
+          title: Authentication Required
+          type: boolean
+          description: Does this plugin require authentication/API keys?
+          default: true
+        hasCaching:
+          title: Enable Caching
+          type: boolean
+          description: Add caching support for API responses?
+          default: false
+        subcommands:
+          title: Subcommands
+          type: array
+          description: List of subcommands to scaffold (e.g., "list", "get", "create")
+          items:
+            type: string
+          ui:options:
+            addable: true
+            orderable: true
+            removable: true
+          default:
+            - list
+            - get
+
+    - title: Repository Configuration
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          category: ${{ parameters.category }}
+          hasApi: ${{ parameters.hasApi }}
+          hasAuth: ${{ parameters.hasAuth }}
+          hasCaching: ${{ parameters.hasCaching }}
+          subcommands: ${{ parameters.subcommands }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        allowedHosts: ["github.com"]
+        description: "devctl plugin: ${{ parameters.description }}"
+        repoUrl: ${{ parameters.repoUrl }}
+        defaultBranch: main
+        protectDefaultBranch: false
+
+    - id: register
+      name: Register in Backstage Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yaml"
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

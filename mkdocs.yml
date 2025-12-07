@@ -1,0 +1,82 @@
+site_name: devctl Documentation
+site_description: A unified CLI for AWS, Grafana, GitHub, Kubernetes, PagerDuty, ArgoCD, Slack, Confluence, and compliance operations
+site_author: stxkxs
+repo_url: https://github.com/stxkxs/devctl-py
+repo_name: stxkxs/devctl-py
+edit_uri: edit/main/docs/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started.md
+      - Configuration: configuration.md
+      - Docker: docker.md
+  - AWS:
+      - Commands Overview: aws-commands.md
+      - Predictive Scaling: predictive-scaling.md
+      - Bedrock AI: bedrock-ai.md
+      - SSM: ssm.md
+  - Integrations:
+      - Kubernetes: kubernetes.md
+      - ArgoCD: argocd.md
+      - Grafana: grafana.md
+      - PagerDuty: pagerduty.md
+      - Slack: slack.md
+      - Confluence: confluence.md
+      - Jira: jira.md
+      - Terraform: terraform.md
+  - Operations:
+      - Logs: logs.md
+      - Deployments: deployments.md
+      - Runbooks: runbooks.md
+      - Workflows: workflows.md
+      - Compliance: compliance.md
+  - AI Features:
+      - AI Commands: ai-commands.md
+
+plugins:
+  - techdocs-core
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html

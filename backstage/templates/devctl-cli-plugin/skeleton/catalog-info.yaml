@@ -1,0 +1,24 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: devctl-plugin-${{ values.name }}
+  title: devctl ${{ values.name }} Plugin
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - cli
+    - python
+    - devctl-plugin
+    - ${{ values.category }}
+  links:
+    - url: https://github.com/${{ values.destination.owner }}/${{ values.destination.repo }}
+      title: GitHub Repository
+      icon: github
+spec:
+  type: library
+  lifecycle: experimental
+  owner: ${{ values.destination.owner }}
+  dependsOn:
+    - component:default/devctl

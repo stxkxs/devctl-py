@@ -1,23 +1,231 @@
+##############################################################################
+# DEVCTL - BACKSTAGE CATALOG CONFIGURATION
+# This file defines the devctl component and related entities for Backstage
+##############################################################################
+
+---
+# =============================================================================
+# MAIN COMPONENT: devctl CLI Tool
+# =============================================================================
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: devctl
-  title: devctl
-  description: A unified CLI for AWS, Grafana, GitHub, Kubernetes, PagerDuty, ArgoCD, Slack, Confluence, and compliance operations
+  title: devctl CLI
+  description: |
+    A unified CLI for AWS, Grafana, GitHub, Kubernetes, PagerDuty, ArgoCD,
+    Slack, Confluence, and compliance operations. Built for DevOps engineers
+    who work across these platforms daily.
+
+  # ---------------------------------------------------------------------------
+  # ANNOTATIONS - Integration points with Backstage plugins
+  # ---------------------------------------------------------------------------
   annotations:
+    # Source Control
     github.com/project-slug: stxkxs/devctl-py
+
+    # TechDocs - Enable documentation rendering in Backstage
     backstage.io/techdocs-ref: dir:.
+
+    # Kubernetes Integration (if deployed)
+    # backstage.io/kubernetes-id: devctl
+    # backstage.io/kubernetes-namespace: devops-tools
+    # backstage.io/kubernetes-label-selector: app=devctl
+
+    # CI/CD Integrations
+    # jenkins.io/job-full-name: devctl/main
+    # circleci.com/project-slug: github/stxkxs/devctl-py
+    # github.com/workflows: .github/workflows/ci.yml
+
+    # Code Quality
+    # sonarqube.org/project-key: stxkxs_devctl-py
+    # backstage.io/code-coverage: enabled
+
+    # Observability
+    # grafana/dashboard-selector: devctl
+    # prometheus.io/rule: up{job="devctl"}
+
+    # Incident Management
+    # pagerduty.com/service-id: PXXXXXX
+    # pagerduty.com/integration-key: xxxxxxxxxxxx
+
+    # Security
+    # snyk.io/org-name: stxkxs
+    # vault.io/secrets-path: secret/devctl
+
+    # ArgoCD (if using GitOps deployment)
+    # argocd/app-name: devctl
+    # argocd/app-namespace: argocd
+
+  # ---------------------------------------------------------------------------
+  # TAGS - Searchable labels for filtering
+  # ---------------------------------------------------------------------------
   tags:
     - cli
     - python
     - devops
     - aws
     - kubernetes
+    - grafana
+    - pagerduty
+    - argocd
+    - slack
+    - confluence
+    - compliance
+    - automation
+
+  # ---------------------------------------------------------------------------
+  # LINKS - Quick access URLs shown in Backstage UI
+  # ---------------------------------------------------------------------------
   links:
     - url: https://github.com/stxkxs/devctl-py
       title: GitHub Repository
       icon: github
+    - url: https://github.com/stxkxs/devctl-py/issues
+      title: Issue Tracker
+      icon: dashboard
+    - url: https://github.com/stxkxs/devctl-py/actions
+      title: CI/CD Pipelines
+      icon: dashboard
+    - url: https://github.com/stxkxs/devctl-py/releases
+      title: Releases
+      icon: dashboard
+    # Uncomment when deployed:
+    # - url: https://pypi.org/project/devctl/
+    #   title: PyPI Package
+    #   icon: web
+
 spec:
   type: tool
   lifecycle: production
   owner: user:default/stxkxs
+
+  # System this component belongs to
+  # system: devops-platform
+
+  # Dependencies
+  # dependsOn:
+  #   - resource:default/aws-bedrock
+  #   - resource:default/grafana-cloud
+
+  # APIs this component provides
+  # providesApis:
+  #   - devctl-cli-api
+
+---
+# =============================================================================
+# API: devctl CLI Interface (optional - documents the CLI "API")
+# =============================================================================
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: devctl-cli-api
+  title: devctl CLI Interface
+  description: Command-line interface specification for devctl
+  tags:
+    - cli
+    - command-line
+spec:
+  type: cli
+  lifecycle: production
+  owner: user:default/stxkxs
+  definition: |
+    # devctl CLI API
+
+    ## Command Groups
+
+    - `devctl aws` - AWS service operations
+    - `devctl grafana` - Grafana management
+    - `devctl github` - GitHub operations
+    - `devctl jira` - Jira issue tracking
+    - `devctl k8s` - Kubernetes management
+    - `devctl pagerduty` - Incident management
+    - `devctl argocd` - GitOps deployments
+    - `devctl logs` - Unified log search
+    - `devctl runbook` - Runbook execution
+    - `devctl deploy` - Deployment strategies
+    - `devctl slack` - Slack messaging
+    - `devctl confluence` - Confluence pages
+    - `devctl compliance` - PCI/security scanning
+    - `devctl ops` - Operations utilities
+    - `devctl workflow` - YAML workflow engine
+
+---
+# =============================================================================
+# RESOURCE: AWS Bedrock (if used)
+# =============================================================================
+# apiVersion: backstage.io/v1alpha1
+# kind: Resource
+# metadata:
+#   name: aws-bedrock
+#   title: AWS Bedrock AI
+#   description: Amazon Bedrock for AI-powered features in devctl
+#   tags:
+#     - aws
+#     - ai
+#     - bedrock
+# spec:
+#   type: ai-service
+#   owner: user:default/stxkxs
+#   dependencyOf:
+#     - component:default/devctl
+
+---
+# =============================================================================
+# LOCATION: Software Templates (enables template discovery)
+# =============================================================================
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: devctl-templates
+  title: devctl Software Templates
+  description: Templates for scaffolding devctl plugins and extensions
+spec:
+  type: url
+  targets:
+    - ./backstage/templates/devctl-cli-plugin/template.yaml
+
+---
+# =============================================================================
+# DOCUMENTATION ENTITY (optional - for external docs)
+# =============================================================================
+# apiVersion: backstage.io/v1alpha1
+# kind: Documentation
+# metadata:
+#   name: devctl-docs
+#   title: devctl Documentation
+#   description: Comprehensive documentation for devctl CLI
+# spec:
+#   owner: user:default/stxkxs
+#   type: techdocs
+#   lifecycle: production
+
+---
+# =============================================================================
+# SYSTEM: DevOps Platform (optional - group related components)
+# =============================================================================
+# apiVersion: backstage.io/v1alpha1
+# kind: System
+# metadata:
+#   name: devops-platform
+#   title: DevOps Platform
+#   description: Unified DevOps tooling and automation platform
+#   tags:
+#     - platform
+#     - devops
+# spec:
+#   owner: user:default/stxkxs
+#   domain: platform-engineering
+
+---
+# =============================================================================
+# DOMAIN: Platform Engineering (optional - top-level grouping)
+# =============================================================================
+# apiVersion: backstage.io/v1alpha1
+# kind: Domain
+# metadata:
+#   name: platform-engineering
+#   title: Platform Engineering
+#   description: Tools and infrastructure for developer productivity
+# spec:
+#   owner: user:default/stxkxs
